@@ -20,19 +20,21 @@ a:hover { background: #e8f0fe; }
 .page-btn:hover { background: #e0e8f4; }
 .page-btn:disabled { opacity: 0.4; cursor: default; }
 .page-info { font-size: 13px; color: #888; }
-.chart-grid { display: flex; flex-wrap: wrap; gap: 3px; margin: 6px 0; }
-.chart-grid a { display: block; width: 16.66%; padding: 0; border-radius: 3px; overflow: hidden; }
+.chart-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin: 6px 0; }
+.chart-grid a { display: block; border-radius: 3px; overflow: hidden; }
 .chart-grid img { width: 100%; display: block; border: 1px solid #ddd; border-radius: 3px; }
-@media (max-width: 600px) { .chart-grid a { width: 33.33%; } }
+@media (max-width: 600px) { .chart-grid { grid-template-columns: repeat(2, 1fr); } }
 /* Lightbox */
 #lightbox { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); }
 #lightbox.show { display: flex; align-items: center; justify-content: center; }
-#lightbox img { max-width: 92%; max-height: 88%; object-fit: contain; border-radius: 4px; }
-.lb-close { position: absolute; top: 8px; right: 16px; font-size: 32px; color: #fff; cursor: pointer; z-index: 2; }
-.lb-nav { position: absolute; top: 0; width: 50%; height: 100%; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 36px; user-select: none; opacity: 0; transition: opacity 0.2s; }
-#lightbox:hover .lb-nav, #lightbox.show .lb-nav { opacity: 1; }
-.lb-prev { left: 0; }
-.lb-next { right: 0; }
+.lb-content { position: relative; display: flex; align-items: center; justify-content: center; max-width: 92%; max-height: 88%; }
+#lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; }
+.lb-close { position: absolute; z-index: 2; top: 8px; right: 16px; font-size: 32px; color: #fff; cursor: pointer; }
+.lb-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 40px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #fff; background: rgba(255,255,255,0.12); border-radius: 6px; cursor: pointer; user-select: none; }
+.lb-nav:hover { background: rgba(255,255,255,0.25); }
+.lb-prev { left: -52px; }
+.lb-next { right: -52px; }
+@media (max-width: 600px) { .lb-prev { left: -44px; } .lb-next { right: -44px; } .lb-nav { width: 34px; height: 60px; font-size: 22px; } }
 .lb-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: #ccc; font-size: 13px; background: rgba(0,0,0,0.5); padding: 3px 10px; border-radius: 10px; z-index: 2; }
 </style>
 </head>
@@ -42,13 +44,13 @@ a:hover { background: #e8f0fe; }
 <p style="color:#666">由 sync_to_pproom.sh 自动同步</p>
 
 <h2>📋 策略评估报告</h2>
-<div class="file-list" id="assess-list">加载中...</div>
+<div class="file-list" id="assess-list"></div>
 
 <h2>📉 交易图表快照</h2>
-<div class="file-list" id="chart-list">加载中...</div>
+<div class="file-list" id="chart-list"></div>
 
 <h2>📈 实盘交易收益分析</h2>
-<div class="file-list" id="live-list"><p style="color:#999">手动上传至 pproom 仓库 LIVE/live_report/ 目录</p></div>
+<div class="file-list" id="live-list"></div>
 
 <p style="color:#999;text-align:center;margin-top:40px">--- pproom 展示仓库 ---</p>
 </div>
@@ -56,9 +58,11 @@ a:hover { background: #e8f0fe; }
 <!-- Lightbox -->
 <div id="lightbox" onclick="closeLightbox(event)">
   <span class="lb-close" onclick="closeLightbox()">&times;</span>
-  <span class="lb-nav lb-prev" id="lbPrev" onclick="navLightbox(-1)">&#10094;</span>
-  <img id="lbImg">
-  <span class="lb-nav lb-next" id="lbNext" onclick="navLightbox(1)">&#10095;</span>
+  <div class="lb-content">
+    <span class="lb-nav lb-prev" id="lbPrev" onclick="navLightbox(-1)">&#10094;</span>
+    <img id="lbImg">
+    <span class="lb-nav lb-next" id="lbNext" onclick="navLightbox(1)">&#10095;</span>
+  </div>
   <span class="lb-counter" id="lbCounter"></span>
 </div>
 
@@ -134,15 +138,42 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
 
       var imgUrls = (b.files || []).map(function(f){ return 'outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f); });
 
-      // 缩略图分页（每页 18 张，3行x6列）
-      var thumbContainer = document.createElement('div');
-      paginate(thumbContainer, imgUrls, 18, function(url, idx){
-        var a = document.createElement('a'); a.href = 'javascript:void(0)';
-        a.onclick = function(){ openLightbox(imgUrls, idx); };
-        var img = document.createElement('img'); img.src = url; img.loading = 'lazy';
-        a.appendChild(img); return a;
-      });
-      div.appendChild(thumbContainer);
+      // 缩略图分页（每页 15 张，3行x5列）
+      var thumbWrap = document.createElement('div');
+      var chartGrid = document.createElement('div');
+      chartGrid.className = 'chart-grid';
+      thumbWrap.appendChild(chartGrid);
+
+      var thumbUrls = imgUrls;
+      var thumbPage = 0, thumbPageSize = 15, thumbTotalPages = Math.ceil(thumbUrls.length / thumbPageSize);
+
+      function renderThumbPage() {
+        chartGrid.innerHTML = '';
+        var start = thumbPage * thumbPageSize;
+        var end = Math.min(start + thumbPageSize, thumbUrls.length);
+        for (var j = start; j < end; j++) {
+          (function(idx){
+            var a = document.createElement('a'); a.href = 'javascript:void(0)';
+            a.onclick = function(){ openLightbox(thumbUrls, idx); };
+            var img = document.createElement('img'); img.src = thumbUrls[idx]; img.loading = 'lazy';
+            a.appendChild(img); chartGrid.appendChild(a);
+          })(j);
+        }
+
+        // 分页条
+        var oldBar = document.getElementById('tb-' + b.dir);
+        if (oldBar) oldBar.remove();
+        var bar = document.createElement('div'); bar.id = 'tb-' + b.dir; bar.className = 'page-bar';
+        var prevBtn = document.createElement('button'); prevBtn.className = 'page-btn'; prevBtn.textContent = '‹ 上一页'; prevBtn.disabled = thumbPage === 0;
+        prevBtn.onclick = function(){ thumbPage--; renderThumbPage(); };
+        var info = document.createElement('span'); info.className = 'page-info'; info.textContent = (thumbPage+1) + '/' + thumbTotalPages + ' 共' + thumbUrls.length;
+        var nextBtn = document.createElement('button'); nextBtn.className = 'page-btn'; nextBtn.textContent = '下一页 ›'; nextBtn.disabled = thumbPage >= thumbTotalPages-1;
+        nextBtn.onclick = function(){ thumbPage++; renderThumbPage(); };
+        bar.appendChild(prevBtn); bar.appendChild(info); bar.appendChild(nextBtn);
+        thumbWrap.appendChild(bar);
+      }
+      renderThumbPage();
+      div.appendChild(thumbWrap);
       batchContainer.appendChild(div);
     }
 
@@ -172,7 +203,26 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
 
     loadMore();
   })();
-}).catch(function(){ document.getElementById('assess-list').innerHTML = '<p style="color:#999">数据加载失败</p>'; });
+
+  // 实盘交易收益分析（已有文件展示，不上传）
+  (function(){
+    var list = document.getElementById('live-list');
+    var items = data.live_report || [];
+    if (items.length === 0) {
+      list.innerHTML = '<p style="color:#999">暂无实盘报告</p>';
+      return;
+    }
+    var container = document.createElement('div');
+    paginate(container, items, 10, function(name){
+      var d = document.createElement('div'); d.className = 'file-item';
+      d.innerHTML = '<a href="LIVE/live_report/' + encodeURIComponent(name) + '">📊 ' + name + '</a>';
+      return d;
+    });
+    list.innerHTML = ''; list.appendChild(container);
+  })();
+}).catch(function(){
+  // 加载失败，保持空白
+});
 </script>
 </body>
 </html>
