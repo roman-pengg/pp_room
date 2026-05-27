@@ -90,36 +90,55 @@ fetch('filelist.json').then(r => r.json()).then(data => {
     list.innerHTML = ''; list.appendChild(container);
   })();
 
-  // 交易图表快照（每批2个回测）
+  // 交易图表快照（每批2个回测，每批内缩略图分页18张）
   (function() {
     const list = document.getElementById('chart-list');
     const batches = data.trading_charts || [];
     if (batches.length === 0) { list.innerHTML = '<p style="color:#999">暂无快照</p>'; return; }
-    let page = 0, PAGE_SIZE = 2;
+    let batchPage = 0, BATCH_SIZE = 2, THUMB_PER_PAGE = 18;
     const container = document.createElement('div');
-    function show() {
-      const end = Math.min((page + 1) * PAGE_SIZE, batches.length);
-      for (let i = page * PAGE_SIZE; i < end; i++) {
+
+    function showBatch() {
+      const end = Math.min((batchPage + 1) * BATCH_SIZE, batches.length);
+      for (let i = batchPage * BATCH_SIZE; i < end; i++) {
         const b = batches[i];
-        const div = document.createElement('div');
-        div.style.cssText = 'margin:12px 0';
-        let html = '<strong>📁 ' + b.dir + '</strong> (' + b.count + ' 张)<div class="chart-grid">';
-        (b.first6 || []).forEach(function(f) {
-          html += '<a href="outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f) + '" target="_blank"><img src="outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f) + '"></a>';
-        });
-        html += '</div>';
-        div.innerHTML = html;
-        container.appendChild(div);
+        const batchDiv = document.createElement('div');
+        batchDiv.style.cssText = 'margin:12px 0';
+        let thumbPage = 0;
+        let inner = document.createElement('div');
+
+        function showThumbs() {
+          const tEnd = Math.min((thumbPage + 1) * THUMB_PER_PAGE, b.files.length);
+          let html = '<strong>📁 ' + b.dir + '</strong> (' + b.count + ' 张)<div class="chart-grid">';
+          for (let j = thumbPage * THUMB_PER_PAGE; j < tEnd; j++) {
+            html += '<a href="outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(b.files[j]) + '" target="_blank"><img src="outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(b.files[j]) + '"></a>';
+          }
+          html += '</div>';
+          inner.innerHTML = html;
+          thumbPage++;
+          // 移除旧的"显示更多"按钮
+          var oldBtn = batchDiv.querySelector('.more-btn');
+          if (oldBtn) oldBtn.remove();
+          if (tEnd < b.files.length) {
+            const btn = document.createElement('button'); btn.className = 'more-btn';
+            btn.textContent = '显示更多（' + tEnd + '/' + b.files.length + '）';
+            btn.onclick = function(){ btn.remove(); showThumbs(); };
+            batchDiv.appendChild(btn);
+          }
+        }
+        showThumbs();
+        batchDiv.insertBefore(inner, batchDiv.firstChild);
+        container.appendChild(batchDiv);
       }
-      page++;
+      batchPage++;
       if (end < batches.length) {
         const btn = document.createElement('button'); btn.className = 'more-btn';
         btn.textContent = '显示更多批次（' + end + '/' + batches.length + '）';
-        btn.onclick = function(){ btn.remove(); show(); };
+        btn.onclick = function(){ btn.remove(); showBatch(); };
         container.appendChild(btn);
       }
     }
-    show();
+    showBatch();
     list.innerHTML = ''; list.appendChild(container);
   })();
 }).catch(function(e) {
