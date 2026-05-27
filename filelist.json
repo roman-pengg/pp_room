@@ -35,7 +35,12 @@
     "assess_OBV低吸策略L3_20260526_155005.html",
     "assess_OBV低吸策略L3_20260526_154411.html"
   ],
-  "live_report": [],
+  "live_report": [
+    "live_report_20260526_115715.xlsx",
+    "live_report_20260526_115041.xlsx",
+    "live_report_20260525_233513.xlsx",
+    "live_report_20260525_224354.xlsx"
+  ],
   "trading_charts": [
     {
       "dir": "20260527_103601",
