@@ -107,7 +107,7 @@ function paginate(container, items, pageSize, renderItem) {
 }
 
 // 加载数据
-fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data) {
+fetch('/filelist.json').then(function(r){ return r.json(); }).then(function(data) {
 
   // 评估报告分页
   (function(){
@@ -115,7 +115,7 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
     var container = document.createElement('div');
     paginate(container, data.assess || [], 10, function(name){
       var d = document.createElement('div'); d.className = 'file-item';
-      d.innerHTML = '<a href="outputs/assess/' + encodeURIComponent(name) + '">📄 ' + name + '</a>';
+      d.innerHTML = '<a href="/outputs/assess/' + encodeURIComponent(name) + '">📄 ' + name + '</a>';
       return d;
     });
     list.innerHTML = ''; list.appendChild(container);
@@ -136,15 +136,13 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
       var header = document.createElement('div'); header.innerHTML = '<strong>📁 ' + b.dir + '</strong> (' + b.count + ' 张)';
       div.appendChild(header);
 
-      var imgUrls = (b.files || []).map(function(f){ return 'outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f); });
-
       // 缩略图分页（每页 15 张，3行x5列）
       var thumbWrap = document.createElement('div');
       var chartGrid = document.createElement('div');
       chartGrid.className = 'chart-grid';
       thumbWrap.appendChild(chartGrid);
 
-      var thumbUrls = imgUrls;
+      var thumbUrls = (b.files || []).map(function(f){ return '/outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f); });
       var thumbPage = 0, thumbPageSize = 15, thumbTotalPages = Math.ceil(thumbUrls.length / thumbPageSize);
 
       function renderThumbPage() {
@@ -215,7 +213,7 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
     var container = document.createElement('div');
     paginate(container, items, 10, function(name){
       var d = document.createElement('div'); d.className = 'file-item';
-      d.innerHTML = '<a href="LIVE/live_report/' + encodeURIComponent(name) + '">📊 ' + name + '</a>';
+      d.innerHTML = '<a href="/LIVE/live_report/' + encodeURIComponent(name) + '">📊 ' + name + '</a>';
       return d;
     });
     list.innerHTML = ''; list.appendChild(container);
