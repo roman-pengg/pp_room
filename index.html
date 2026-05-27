@@ -29,11 +29,11 @@ a:hover { background: #e8f0fe; }
 <h2>📋 策略评估报告</h2>
 <div class="file-list" id="assess-list">加载中...</div>
 
-<h2>📈 实盘交易收益分析</h2>
-<div class="file-list" id="live-list">加载中...</div>
-
 <h2>📉 交易图表快照</h2>
 <div class="file-list" id="chart-list">加载中...</div>
+
+<h2>📈 实盘交易收益分析</h2>
+<div class="file-list" id="live-list"><p style="color:#999">手动上传至 pproom 仓库 LIVE/live_report/ 目录</p></div>
 
 <p style="color:#999;text-align:center;margin-top:40px">--- pproom 展示仓库 ---</p>
 </div>
@@ -65,30 +65,7 @@ fetch('filelist.json').then(r => r.json()).then(data => {
     list.innerHTML = ''; list.appendChild(container);
   })();
 
-  // 实盘报表（每页10条）
-  (function() {
-    const list = document.getElementById('live-list');
-    const items = data.live_report || [];
-    let page = 0, PAGE_SIZE = 10;
-    const container = document.createElement('div');
-    function show() {
-      const end = Math.min((page + 1) * PAGE_SIZE, items.length);
-      for (let i = page * PAGE_SIZE; i < end; i++) {
-        const d = document.createElement('div'); d.className = 'file-item';
-        d.innerHTML = '<a href="LIVE/live_report/' + encodeURIComponent(items[i]) + '">📊 ' + items[i] + '</a>';
-        container.appendChild(d);
-      }
-      page++;
-      if (end < items.length) {
-        const btn = document.createElement('button'); btn.className = 'more-btn';
-        btn.textContent = '显示更多（' + end + '/' + items.length + '）';
-        btn.onclick = function(){ btn.remove(); show(); };
-        container.appendChild(btn);
-      }
-    }
-    show();
-    list.innerHTML = ''; list.appendChild(container);
-  })();
+  // 实盘报表（已改为静态提示，由手动上传）
 
   // 交易图表快照（每批2个回测，每批内缩略图分页18张）
   (function() {
