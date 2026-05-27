@@ -15,69 +15,109 @@ a:hover { background: #e8f0fe; }
 .file-item { border-bottom: 1px solid #e8e8e8; font-size: 14px; }
 .file-item:last-child { border-bottom: none; }
 .time { color: #999; font-size: 12px; margin-left: 10px; }
+.more-btn { display: block; width: 100%; padding: 8px; margin-top: 8px; background: #f0f4fa; border: 1px solid #d0d8e8; border-radius: 6px; color: #4472C4; font-size: 14px; cursor: pointer; text-align: center; }
+.more-btn:hover { background: #e0e8f4; }
+.chart-grid { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.chart-grid img { width: 32%; border-radius: 4px; border: 1px solid #ddd; }
 </style>
 </head>
 <body>
 <div class="container">
 <h1>📊 pproom — 量化策略报告</h1>
-<p style="color:#666">由 sync_to_pproom.sh 自动同步</p>
+<p style="color:#666">由 sync_to_pproom.sh 自动同步 | <a href="https://github.com/roman-pengg/pp_room" style="display:inline;padding:0">GitHub 仓库 →</a></p>
 
 <h2>📋 策略评估报告</h2>
-<div class="file-list" id="assess-list">加载中...</div>
+<div class="file-list" id="assess-list"><p style="color:#999">加载中...</p></div>
 
 <h2>📈 实盘交易收益分析</h2>
-<div class="file-list" id="live-list">加载中...</div>
+<div class="file-list" id="live-list"><p style="color:#999">加载中...</p></div>
 
 <h2>📉 交易图表快照</h2>
-<div class="file-list" id="chart-list">加载中...</div>
+<div class="file-list" id="chart-list"><p style="color:#999">加载中...</p></div>
 
 <p style="color:#999;text-align:center;margin-top:40px">--- pproom 展示仓库 ---</p>
 </div>
 
 <script>
-fetch('https://api.github.com/repos/roman-pengg/pp_room/contents/outputs/assess')
-  .then(r => r.json())
-  .then(files => {
-    const list = document.getElementById('assess-list');
-    list.innerHTML = files
-      .filter(f => f.name.endsWith('.html'))
-      .sort((a, b) => b.name.localeCompare(a.name))
-      .map(f => `<div class="file-item"><a href="${f.name}">📄 ${decodeURIComponent(f.name)}</a></div>`)
-      .join('');
-  }).catch(() => document.getElementById('assess-list').innerHTML = '暂无文件');
+function loadList(url, filterFn, renderFn, pageSize) {
+  return fetch(url).then(r => r.json()).then(items => {
+    const filtered = items.filter(filterFn).sort((a, b) => b.name.localeCompare(a.name));
+    const total = filtered.length;
+    let page = 0;
+    const container = document.createElement('div');
+    function showPage() {
+      const start = page * pageSize;
+      const end = Math.min(start + pageSize, total);
+      for (let i = start; i < end; i++) container.appendChild(renderFn(filtered[i]));
+      page++;
+      if (end < total) {
+        const btn = document.createElement('button');
+        btn.className = 'more-btn';
+        btn.textContent = `显示更多（${end}/${total}）`;
+        btn.onclick = function() { btn.remove(); showPage(); };
+        container.appendChild(btn);
+      }
+    }
+    showPage();
+    return container;
+  });
+}
 
-fetch('https://api.github.com/repos/roman-pengg/pp_room/contents/LIVE/live_report')
-  .then(r => r.json())
-  .then(files => {
-    const list = document.getElementById('live-list');
-    list.innerHTML = files
-      .filter(f => f.name.endsWith('.xlsx'))
-      .sort((a, b) => b.name.localeCompare(a.name))
-      .map(f => `<div class="file-item"><a href="${f.name}">📊 ${decodeURIComponent(f.name)}</a></div>`)
-      .join('');
-  }).catch(() => document.getElementById('live-list').innerHTML = '暂无文件');
+// 评估报告
+loadList('https://api.github.com/repos/roman-pengg/pp_room/contents/outputs/assess',
+  f => f.name.endsWith('.html'),
+  f => { const d = document.createElement('div'); d.className = 'file-item'; d.innerHTML = `<a href="${f.name}">📄 ${decodeURIComponent(f.name)}</a>`; return d; },
+  10
+).then(el => { const p = document.getElementById('assess-list'); p.innerHTML = ''; p.appendChild(el); }).catch(() => {});
 
+// 实盘报表  
+loadList('https://api.github.com/repos/roman-pengg/pp_room/contents/LIVE/live_report',
+  f => f.name.endsWith('.xlsx'),
+  f => { const d = document.createElement('div'); d.className = 'file-item'; d.innerHTML = `<a href="${f.name}">📊 ${decodeURIComponent(f.name)}</a>`; return d; },
+  10
+).then(el => { const p = document.getElementById('live-list'); p.innerHTML = ''; p.appendChild(el); }).catch(() => {});
+
+// 交易图表快照
 fetch('https://api.github.com/repos/roman-pengg/pp_room/contents/outputs/trading_charts')
   .then(r => r.json())
   .then(dirs => {
     const list = document.getElementById('chart-list');
-    const recent = (dirs || []).filter(d => d.type === 'dir').sort((a, b) => b.name.localeCompare(a.name)).slice(0, 5);
-    if (recent.length === 0) { list.innerHTML = '暂无快照'; return; }
-    Promise.allSettled(recent.map(d =>
-      fetch(d.url).then(r => r.json()).then(files => ({ dir: d.name, files: files || [] }))
-    )).then(results => {
-      let html = '';
-      results.forEach(r => {
-        if (r.status !== 'fulfilled') return;
-        html += `<div style="margin:10px 0"><strong>📁 ${r.value.dir}</strong></div>`;
-        r.value.files.filter(f => f.name.endsWith('.png')).slice(0, 6).forEach(f => {
-          html += `<img src="${f.download_url}" style="width:30%;margin:2px;border-radius:4px;border:1px solid #ddd">`;
+    const recent = (dirs || []).filter(d => d.type === 'dir').sort((a, b) => b.name.localeCompare(a.name));
+    if (recent.length === 0) { list.innerHTML = '<p style="color:#999">暂无快照</p>'; return; }
+
+    let page = 0;
+    const PAGE = 2;
+    const container = document.createElement('div');
+
+    function showPage() {
+      const start = page * PAGE;
+      const end = Math.min(start + PAGE, recent.length);
+      const promises = recent.slice(start, end).map(d =>
+        fetch(d.url).then(r => r.json()).then(files => ({ dir: d.name, files: files || [] }))
+      );
+      Promise.allSettled(promises).then(results => {
+        results.forEach(r => {
+          if (r.status !== 'fulfilled') return;
+          const imgs = r.value.files.filter(f => f.name.endsWith('.png'));
+          const div = document.createElement('div');
+          div.style.cssText = 'margin:12px 0';
+          div.innerHTML = `<strong>📁 ${r.value.dir}</strong> (${imgs.length} 张)<div class="chart-grid">${imgs.slice(0, 6).map(f => `<img src="${f.download_url}">`).join('')}</div>`;
+          container.appendChild(div);
         });
-        html += `<div style="font-size:12px;color:#999;margin:4px 0">共 ${r.value.files.filter(f=>f.name.endsWith('.png')).length} 张</div>`;
+        page++;
+        if (end < recent.length) {
+          const btn = document.createElement('button');
+          btn.className = 'more-btn';
+          btn.textContent = `显示更多批次（${end}/${recent.length}）`;
+          btn.onclick = function() { btn.remove(); showPage(); };
+          container.appendChild(btn);
+        }
       });
-      list.innerHTML = html;
-    });
-  }).catch(() => document.getElementById('chart-list').innerHTML = '暂无快照');
+    }
+    showPage();
+    list.innerHTML = '';
+    list.appendChild(container);
+  }).catch(() => document.getElementById('chart-list').innerHTML = '<p style="color:#999">暂无快照</p>');
 </script>
 </body>
 </html>
