@@ -115,7 +115,7 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
     var container = document.createElement('div');
     paginate(container, data.assess || [], 10, function(name){
       var d = document.createElement('div'); d.className = 'file-item';
-      d.innerHTML = '<a href="/outputs/assess/' + encodeURIComponent(name) + '">📄 ' + name + '</a>';
+      d.innerHTML = '<a href="outputs/assess/' + encodeURIComponent(name) + '">📄 ' + name + '</a>';
       return d;
     });
     list.innerHTML = ''; list.appendChild(container);
@@ -142,7 +142,7 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
       chartGrid.className = 'chart-grid';
       thumbWrap.appendChild(chartGrid);
 
-      var thumbUrls = (b.files || []).map(function(f){ return '/outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f); });
+      var thumbUrls = (b.files || []).map(function(f){ return 'outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f); });
       var thumbPage = 0, thumbPageSize = 15, thumbTotalPages = Math.ceil(thumbUrls.length / thumbPageSize);
 
       function renderThumbPage() {
@@ -213,7 +213,7 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
     var container = document.createElement('div');
     paginate(container, items, 10, function(name){
       var d = document.createElement('div'); d.className = 'file-item';
-      d.innerHTML = '<a href="/LIVE/live_report/' + encodeURIComponent(name) + '">📊 ' + name + '</a>';
+      d.innerHTML = '<a href="LIVE/live_report/' + encodeURIComponent(name) + '">📊 ' + name + '</a>';
       return d;
     });
     list.innerHTML = ''; list.appendChild(container);
