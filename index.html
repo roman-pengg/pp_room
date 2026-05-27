@@ -66,14 +66,14 @@ function loadList(url, filterFn, renderFn, pageSize) {
 // 评估报告
 loadList('https://api.github.com/repos/roman-pengg/pp_room/contents/outputs/assess',
   f => f.name.endsWith('.html'),
-  f => { const d = document.createElement('div'); d.className = 'file-item'; d.innerHTML = `<a href="${f.name}">📄 ${decodeURIComponent(f.name)}</a>`; return d; },
+  f => { const d = document.createElement('div'); d.className = 'file-item'; d.innerHTML = `<a href="outputs/assess/${encodeURIComponent(f.name)}">📄 ${decodeURIComponent(f.name)}</a>`; return d; },
   10
 ).then(el => { const p = document.getElementById('assess-list'); p.innerHTML = ''; p.appendChild(el); }).catch(() => {});
 
 // 实盘报表  
 loadList('https://api.github.com/repos/roman-pengg/pp_room/contents/LIVE/live_report',
   f => f.name.endsWith('.xlsx'),
-  f => { const d = document.createElement('div'); d.className = 'file-item'; d.innerHTML = `<a href="${f.name}">📊 ${decodeURIComponent(f.name)}</a>`; return d; },
+  f => { const d = document.createElement('div'); d.className = 'file-item'; d.innerHTML = `<a href="LIVE/live_report/${encodeURIComponent(f.name)}">📊 ${decodeURIComponent(f.name)}</a>`; return d; },
   10
 ).then(el => { const p = document.getElementById('live-list'); p.innerHTML = ''; p.appendChild(el); }).catch(() => {});
 
@@ -101,7 +101,7 @@ fetch('https://api.github.com/repos/roman-pengg/pp_room/contents/outputs/trading
           const imgs = r.value.files.filter(f => f.name.endsWith('.png'));
           const div = document.createElement('div');
           div.style.cssText = 'margin:12px 0';
-          div.innerHTML = `<strong>📁 ${r.value.dir}</strong> (${imgs.length} 张)<div class="chart-grid">${imgs.slice(0, 6).map(f => `<img src="${f.download_url}">`).join('')}</div>`;
+          div.innerHTML = `<strong>📁 ${r.value.dir}</strong> (${imgs.length} 张)<div class="chart-grid">${imgs.slice(0, 6).map(f => `<a href="outputs/trading_charts/${r.value.dir}/${encodeURIComponent(f.name)}" target="_blank"><img src="${f.download_url}"></a>`).join('')}</div>`;
           container.appendChild(div);
         });
         page++;
