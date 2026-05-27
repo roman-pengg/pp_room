@@ -107,7 +107,7 @@ function paginate(container, items, pageSize, renderItem) {
 }
 
 // 加载数据
-fetch('/filelist.json').then(function(r){ return r.json(); }).then(function(data) {
+fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data) {
 
   // 评估报告分页
   (function(){
