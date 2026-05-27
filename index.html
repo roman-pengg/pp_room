@@ -20,18 +20,20 @@ a:hover { background: #e8f0fe; }
 .page-btn:hover { background: #e0e8f4; }
 .page-btn:disabled { opacity: 0.4; cursor: default; }
 .page-info { font-size: 13px; color: #888; }
-.chart-grid { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
-.chart-grid a { display: block; width: 15%; padding: 0; border-radius: 4px; overflow: hidden; }
-.chart-grid img { width: 100%; display: block; border: 1px solid #ddd; border-radius: 4px; }
+.chart-grid { display: flex; flex-wrap: wrap; gap: 3px; margin: 6px 0; }
+.chart-grid a { display: block; width: 16.66%; padding: 0; border-radius: 3px; overflow: hidden; }
+.chart-grid img { width: 100%; display: block; border: 1px solid #ddd; border-radius: 3px; }
+@media (max-width: 600px) { .chart-grid a { width: 33.33%; } }
 /* Lightbox */
-#lightbox { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
+#lightbox { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); }
 #lightbox.show { display: flex; align-items: center; justify-content: center; }
-#lightbox img { max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 4px; }
-.lb-close { position: absolute; top: 10px; right: 20px; font-size: 36px; color: #fff; cursor: pointer; }
-.lb-nav { position: absolute; top: 50%; transform: translateY(-50%); font-size: 40px; color: #fff; cursor: pointer; padding: 20px; user-select: none; }
-.lb-prev { left: 10px; }
-.lb-next { right: 10px; }
-.lb-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #ccc; font-size: 14px; background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 12px; }
+#lightbox img { max-width: 92%; max-height: 88%; object-fit: contain; border-radius: 4px; }
+.lb-close { position: absolute; top: 8px; right: 16px; font-size: 32px; color: #fff; cursor: pointer; z-index: 2; }
+.lb-nav { position: absolute; top: 0; width: 50%; height: 100%; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 36px; user-select: none; opacity: 0; transition: opacity 0.2s; }
+#lightbox:hover .lb-nav, #lightbox.show .lb-nav { opacity: 1; }
+.lb-prev { left: 0; }
+.lb-next { right: 0; }
+.lb-counter { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: #ccc; font-size: 13px; background: rgba(0,0,0,0.5); padding: 3px 10px; border-radius: 10px; z-index: 2; }
 </style>
 </head>
 <body>
