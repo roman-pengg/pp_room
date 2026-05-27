@@ -124,15 +124,17 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
     if (batches.length === 0) { list.innerHTML = '<p style="color:#999">暂无快照</p>'; return; }
 
     var batchContainer = document.createElement('div');
-    paginate(batchContainer, batches, 2, function(b){
+    list.appendChild(batchContainer);
+    var batchIndex = 0, batchPageSize = 2;
+
+    function renderBatch(b) {
       var div = document.createElement('div'); div.style.cssText = 'margin:12px 0';
       var header = document.createElement('div'); header.innerHTML = '<strong>📁 ' + b.dir + '</strong> (' + b.count + ' 张)';
       div.appendChild(header);
 
-      var thumbGrid = document.createElement('div'); thumbGrid.className = 'chart-grid';
       var imgUrls = (b.files || []).map(function(f){ return 'outputs/trading_charts/' + b.dir + '/' + encodeURIComponent(f); });
 
-      // 缩略图分页
+      // 缩略图分页（每页 18 张，3行x6列）
       var thumbContainer = document.createElement('div');
       paginate(thumbContainer, imgUrls, 18, function(url, idx){
         var a = document.createElement('a'); a.href = 'javascript:void(0)';
@@ -141,9 +143,34 @@ fetch('filelist.json').then(function(r){ return r.json(); }).then(function(data)
         a.appendChild(img); return a;
       });
       div.appendChild(thumbContainer);
-      return div;
-    });
-    list.innerHTML = ''; list.appendChild(batchContainer);
+      batchContainer.appendChild(div);
+    }
+
+    function updateMoreBtn() {
+      var oldBar = document.getElementById('batch-more-bar');
+      if (oldBar) oldBar.remove();
+
+      if (batchIndex < batches.length) {
+        var bar = document.createElement('div'); bar.id = 'batch-more-bar';
+        bar.style.cssText = 'text-align:center; margin:10px 0';
+        var btn = document.createElement('button'); btn.className = 'page-btn';
+        btn.textContent = '显示更多（剩余 ' + (batches.length - batchIndex) + ' 个批次）';
+        btn.onclick = function(){
+          loadMore();
+        };
+        bar.appendChild(btn);
+        batchContainer.appendChild(bar);
+      }
+    }
+
+    function loadMore() {
+      var end = Math.min(batchIndex + batchPageSize, batches.length);
+      for (var i = batchIndex; i < end; i++) renderBatch(batches[i]);
+      batchIndex = end;
+      updateMoreBtn();
+    }
+
+    loadMore();
   })();
 }).catch(function(){ document.getElementById('assess-list').innerHTML = '<p style="color:#999">数据加载失败</p>'; });
 </script>
