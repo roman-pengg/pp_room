@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务调度</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; padding: 48px 32px; min-height: 100vh; }
+.container { max-width: 960px; margin: 0 auto; }
+.header { display: flex; align-items: center; gap: 10px; margin-bottom: 48px; }
+.header-icon { width: 36px; height: 36px; background: #e8e8ed; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.header h1 { font-size: 20px; font-weight: 600; }
+.header .badge { margin-left: auto; font-size: 13px; color: #86868b; background: #e8e8ed; padding: 6px 14px; border-radius: 20px; }
+.left-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.left-header h2 { font-size: 12px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.8px; }
+.left-header .new-btn { font-size: 13px; color: #0071e3; background: none; border: none; font-weight: 500; cursor: pointer; }
+.task-list { background: #fff; border-radius: 14px; padding: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.task-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; }
+.task-item.active { background: #eef1ff; }
+.task-item.si-on { background: #ecf2fc; }
+.task-item.si-on.active { background: #d9e5fa; }
+.task-item.si-off { background: #ededf0; }
+.task-item.si-off.active { background: #e0e0e5; }
+.task-item:not(.active):not(.si-on):not(.si-off):hover { background: #f5f5f7; }
+.task-item.si-on:not(.active):hover { background: #dfe8f8; }
+.task-item.si-off:not(.active):hover { background: #e4e4e8; }
+.task-item.si-real { border-left: 3px solid #ff3b30; padding-left: 11px; }
+.task-item.si-real.active { border-left-color: #ff3b30; }
+.task-item.si-sim { border-left: 3px solid #f5a623; padding-left: 11px; }
+.task-item.si-sim.active { border-left-color: #f5a623; }
+.task-indicator { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.task-indicator.on { background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,0.2); }
+.task-indicator.off { background: #c7c7cc; }
+.task-info { flex: 1; min-width: 0; }
+.task-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.task-name .badge-on { font-size: 10px; background: #eafaea; color: #34c759; padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+.task-name .badge-off { font-size: 10px; background: #ffe0e0; color: #ff3b30; padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+.task-meta { font-size: 12px; color: #86868b; margin-top: 3px; }
+.task-status-r { font-size: 11px; flex-shrink: 0; text-align: right; min-width: 70px; }
+.task-status-r .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 3px; vertical-align: 1px; }
+.task-status-r .dot.running { background: #ff3b30; animation: pulse-dot 1.2s infinite; }
+.task-status-r .dot.stopped { background: #c7c7cc; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+.task-status-r .status-label { display: block; }
+.task-status-r .status-label.running { color: #ff3b30; font-weight: 500; }
+.task-status-r .status-elapsed { display: block; color: #86868b; font-size: 10px; }
+.right { flex: 2; min-width: 440px; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background .3s; }
+.right.si-on { background: #ecf2fc; }
+.right.si-off { background: #ededf0; }
+.layout { display: flex; gap: 20px; align-items: flex-start; }
+.left { flex: 1.2; min-width: 260px; }
+.last-run { font-size: 12px; color: #86868b; margin-top: 6px; }
+.right-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+.right-header h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 4px; }
+.right-header .updated { font-size: 13px; color: #86868b; }
+.right-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.btn { border: none; cursor: pointer; font-size: 13px; font-weight: 500; border-radius: 8px; white-space: nowrap; }
+.btn-primary { padding: 8px 18px; background: #0071e3; color: #fff; }
+.btn-primary:hover { background: #0060c3; }
+.btn-icon { width: 36px; height: 36px; background: #f5f5f7; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; color: #1d1d1f; display: flex; align-items: center; justify-content: center; }
+.btn-icon:hover { background: #e8e8ed; }
+.btn-icon.danger { color: #ff3b30; }
+.btn-start { padding: 8px 18px; background: #34c759; color: #fff; display: flex; align-items: center; gap: 5px; }
+.btn-start:hover { background: #28a745; }
+.btn-start.stopped { background: #c7c7cc; pointer-events: none; cursor: not-allowed; }
+.enable-toggle { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
+.enable-toggle .switch { position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
+.enable-toggle .switch input { opacity: 0; width: 0; height: 0; }
+.enable-toggle .slider { position: absolute; inset: 0; background: #c7c7cc; border-radius: 20px; transition: 0.2s; }
+.enable-toggle .slider::after { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: 0.2s; }
+.enable-toggle .switch input:checked + .slider { background: #34c759; }
+.enable-toggle .switch input:checked + .slider::after { transform: translateX(16px); }
+.enable-toggle .label { font-size: 12px; color: #86868b; }
+.enable-toggle .label.active { color: #34c759; font-weight: 500; }
+.schedule-card { background: #f0faf0; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.schedule-card .icon { font-size: 20px; }
+.schedule-card .info { flex: 1; }
+.schedule-card .info .line1 { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.schedule-card .info .line2 { font-size: 12px; color: #666; margin-top: 2px; }
+.schedule-card .days { display: flex; gap: 3px; font-size: 12px; }
+.schedule-card .days span { padding: 3px 6px; border-radius: 4px; }
+.schedule-card .days .on { background: #e8f5e9; color: #2e7d32; font-weight: 500; }
+.schedule-card .days .off { background: #f0f0f0; color: #c7c7cc; }
+.no-schedule { background: #f5f5f7; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 13px; color: #86868b; }
+.no-schedule .btn-link { margin-left: auto; font-size: 13px; color: #0071e3; background: none; border: none; cursor: pointer; font-weight: 500; }
+.strategy-selector { margin-bottom: 20px; }
+.strategy-selector .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.strategy-selector .toolbar .left { display: flex; align-items: center; gap: 8px; flex: none; }
+.strategy-selector .toolbar .count { font-size: 13px; font-weight: 600; }
+.strategy-selector .toolbar .hint { font-size: 12px; color: #86868b; }
+.strategy-selector .search-bar { display: flex; gap: 8px; flex: 1; max-width: 280px; }
+.strategy-selector .search-bar input { flex: 1; padding: 6px 10px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 13px; outline: none; background: #f5f5f7; }
+.strategy-selector .search-bar input:focus { border-color: #0071e3; background: #fff; }
+.strategy-selector .search-bar select { padding: 6px 10px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 13px; background: #fff; }
+.strategy-rows { background: #f5f5f7; border-radius: 12px; overflow: hidden; }
+.strategy-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #e8e8ed; cursor: pointer; transition: background 0.1s; }
+.strategy-row:last-child { border-bottom: none; }
+.strategy-row:hover { background: #eef0f4; }
+.strategy-row.included { background: #eef1ff; }
+.strategy-row.included:hover { background: #e4e8ff; }
+.strategy-row .check { width: 20px; height: 20px; flex-shrink: 0; border: 2px solid #c7c7cc; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.12s; font-size: 12px; color: #fff; }
+.strategy-row.included .check { background: #0071e3; border-color: #0071e3; }
+.strategy-row .sid { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; background: #dce0ff; color: #0071e3; }
+.strategy-row .name { font-size: 14px; font-weight: 500; flex: 1; }
+.strategy-row .name .pool-tag { font-size: 12px; background: #e8e8ed; color: #86868b; padding: 2px 7px; border-radius: 4px; margin-left: 6px; }
+.strategy-row .name .stage-tag { font-size:12px; padding:2px 7px; border-radius:4px; font-weight:500; margin-left:4px; }
+.strategy-row .name .stage-tag.dev { background:#eeeaff; color:#6c5ce7; }
+.strategy-row .name .stage-tag.live { background:#eafaea; color:#34c759; }
+.strategy-row .name .stage-tag.paused { background:#ffe0e0; color:#ff3b30; }
+.strategy-row .metrics { font-size: 12px; color: #86868b; white-space: nowrap; }
+.strategy-row .weight { font-size: 13px; font-family: 'SF Mono', monospace; font-weight: 500; min-width: 60px; text-align: right; }
+.strategy-row .weight.zero { color: #c7c7cc; }
+.strategy-row .weight.nonzero { color: #0071e3; }
+.quote-summary { background: #f5f5f7; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.quote-summary .qs-icon { font-size: 16px; }
+.quote-summary .qs-info { flex: 1; }
+.quote-summary .qs-info .qs-line1 { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.quote-summary .qs-info .qs-line2 { font-size: 11px; color: #86868b; margin-top: 1px; }
+.quote-summary .qs-up { color: #ff3b30; font-weight: 500; }
+.quote-summary .qs-down { color: #34c759; font-weight: 500; }
+.quote-summary .qs-total { color: #86868b; }
+.quote-summary .qs-bar { width: 100px; height: 4px; background: #e8e8ed; border-radius: 2px; overflow: hidden; display: flex; flex-shrink: 0; }
+.quote-summary .qs-bar .up { background: #ff3b30; height: 100%; }
+.quote-summary .qs-bar .down { background: #34c759; height: 100%; }
+.quote-summary .qs-bar .flat { background: #c7c7cc; height: 100%; }
+.quote-pool-section { margin-bottom: 12px; }
+.quote-pool-section .qp-header { font-size: 12px; font-weight: 600; color: #1d1d1f; margin-bottom: 4px; padding: 0 2px; }
+.quote-pool-section .qp-header .qp-tag { font-size: 11px; background: #e8e8ed; color: #86868b; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
+.quote-stock-list { background: #fff; border-radius: 8px; overflow: hidden; max-height: 300px; overflow-y: auto; }
+.quote-stock-list .qs-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px; border-bottom: 1px solid #f0f0f0; }
+.quote-stock-list .qs-row:last-child { border-bottom: none; }
+.quote-stock-list .qs-code { font-family: 'SF Mono', monospace; font-size: 11px; color: #86868b; min-width: 72px; }
+.quote-stock-list .qs-name { color: #1d1d1f; min-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quote-stock-list .qs-price { font-weight: 500; min-width: 50px; text-align: right; }
+.quote-stock-list .qs-pct { min-width: 55px; text-align: right; font-weight: 500; font-family: 'SF Mono', monospace; font-size: 11px; }
+.quote-stock-list .qs-pct.up { color: #ff3b30; }
+.quote-stock-list .qs-pct.down { color: #34c759; }
+.quote-stock-list .qs-pct.flat { color: #c7c7cc; }
+.weight-mode-select { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 16px; border-radius: 10px; background: #f5f5f7; }
+.weight-mode-select label { font-size: 12px; color: #86868b; }
+.weight-mode-select select { padding: 6px 10px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 13px; background: #fff; }
+.weight-mode-select .summary { margin-left: auto; font-size: 12px; color: #34c759; font-weight: 500; }
+.edit-card { background: #f5f5f7; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.edit-field { margin-bottom: 16px; }
+.edit-field:last-child { margin-bottom: 0; }
+.edit-field label { display: block; font-size: 12px; font-weight: 500; color: #86868b; margin-bottom: 4px; }
+.edit-field input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; outline: none; }
+.edit-field input:focus { border-color: #0071e3; }
+.edit-actions { display: flex; gap: 8px; margin-top: 20px; }
+.btn-secondary { padding: 8px 20px; background: #fff; color: #1d1d1f; border: 1px solid #d2d2d7; border-radius: 10px; font-size: 14px; cursor: pointer; font-weight: 500; }
+.btn-secondary:hover { background: #f5f5f7; }
+.sched-edit { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e0e0e0; }
+.toggle-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.toggle-switch { position: relative; width: 44px; height: 26px; flex-shrink: 0; cursor: pointer; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: #c7c7cc; border-radius: 26px; transition: 0.2s; }
+.toggle-slider::after { content: ''; position: absolute; width: 22px; height: 22px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: 0.2s; }
+.toggle-switch input:checked + .toggle-slider { background: #34c759; }
+.toggle-switch input:checked + .toggle-slider::after { transform: translateX(18px); }
+.toggle-label { font-size: 14px; font-weight: 500; }
+.toggle-hint { font-size: 12px; color: #86868b; }
+.schedule-config { padding-left: 54px; }
+.time-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.time-row input[type="time"] { padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; outline: none; width: 140px; }
+.time-row input[type="time"]:focus { border-color: #0071e3; }
+.time-row select { padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; background: #fff; outline: none; }
+.period-presets { display: flex; gap: 6px; margin-bottom: 8px; }
+.period-btn { padding: 6px 16px; border: 1px solid #d2d2d7; border-radius: 8px; background: #fff; font-size: 13px; cursor: pointer; transition: all 0.12s; color: #1d1d1f; }
+.period-btn:hover { border-color: #0071e3; }
+.period-btn.selected { background: #0071e3; color: #fff; border-color: #0071e3; }
+.dow-grid { display: flex; gap: 6px; }
+.dow-btn { padding: 8px 0; width: 40px; text-align: center; border: 1px solid #d2d2d7; border-radius: 8px; background: #fff; font-size: 13px; cursor: pointer; transition: all 0.12s; color: #1d1d1f; }
+.dow-btn:hover { border-color: #0071e3; }
+.dow-btn.selected { background: #0071e3; color: #fff; border-color: #0071e3; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div class="header-icon">⚡</div>
+  <h1>任务调度</h1>
+  <div class="badge" id="badge">策略全集 · 加载中...</div>
+</div>
+
+<div class="layout">
+<!-- ═══════ 左侧：任务列表 ═══════ -->
+<div class="left">
+  <div class="left-header">
+    <h2>任务列表</h2>
+    <button class="new-btn" onclick="editTask(true)">+ 新建</button>
+  </div>
+  <div style="display:flex;gap:4px;margin-bottom:6px">
+    <input placeholder="搜索" id="taskSearch" oninput="renderTaskList()" style="flex:1;padding:5px 8px;border:1px solid #d2d2d7;border-radius:6px;font-size:12px;background:#f5f5f7;outline:none">
+    <select id="taskFilter" onchange="renderTaskList()" style="padding:5px 6px;border:1px solid #d2d2d7;border-radius:6px;font-size:12px;background:#fff">
+      <option value="">全部</option><option value="1">启用</option><option value="0">停用</option>
+    </select>
+  </div>
+  <div class="task-list" id="taskList"></div>
+</div>
+
+<!-- ═══════ 右侧面板 ═══════ -->
+<div class="right" id="rightPanel">
+  <!-- 查看模式 -->
+  <div id="panelView" style="display:none"></div>
+  <!-- 编辑/新建模式 -->
+  <div id="panelEdit" style="display:none"></div>
+  <!-- 空状态 -->
+  <div id="panelEmpty" style="padding:60px;text-align:center;color:#86868b">
+    <div style="font-size:40px;margin-bottom:12px">⚡</div>
+    <div style="margin-bottom:8px;font-weight:500">策略全集 · <span id="emptyCount">0</span> 条</div>
+    <div style="font-size:13px">点击左侧「+ 新建」创建任务，或在左侧选择已有任务</div>
+  </div>
+</div>
+</div></div>
+
+<script>
+let taskList = [], strategies = [], curTask = null, curIsNew = false, taskStatus = {};
+let statusInterval = null;
+
+function formatElapsed(startedAt) {
+  const [h, m, s] = startedAt.split(':').map(Number);
+  const startSec = h * 3600 + m * 60 + s;
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  let diff = nowSec - startSec;
+  if (diff < 0) diff += 86400; // 跨天
+  const min = Math.floor(diff / 60);
+  const sec = diff % 60;
+  return min > 0 ? min + 'm' + sec + 's' : sec + 's';
+}
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/tasks/status');
+    if (r.ok) taskStatus = await r.json();
+  } catch(e) {}
+  renderTaskList();
+  // 如果正在查看任务，刷新运行时间
+  if (curTask && document.getElementById('panelView').style.display !== 'none') renderViewRunInfo();
+}
+function renderViewRunInfo() {
+  const el = document.getElementById('vRunInfo');
+  if (!el || !curTask) return;
+  const st = taskStatus[curTask.name] || {};
+  const running = st.status === 'running';
+  // 更新按钮状态
+  const btn = document.getElementById('vRunBtn');
+  if (btn) {
+    btn.disabled = running;
+    if (running) btn.classList.add('stopped'); else btn.classList.remove('stopped');
+  }
+  // 上次运行信息：优先 task JSON 中的 last_run，其次 st
+  const lr = curTask.last_run || st;
+  if (lr && lr.finished_at) {
+    const dur = lr.duration_sec||0;
+    const ds = dur>=60 ? Math.floor(dur/60)+'m'+Math.round(dur%60)+'s' : Math.round(dur)+'s';
+    el.innerHTML = '上次运行: '+lr.finished_at+' · 耗时 '+ds;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+async function api(path, method, body) {
+  const opts = {method:method||'GET', headers:{'Content-Type':'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch('/api/tasks/'+path, opts);
+  return r.json();
+}
+
+async function init() {
+  taskList = await api('list');
+  const st = await fetch('/api/tasks/strategies');
+  if (st.ok) strategies = await st.json();
+  document.getElementById('badge').textContent = '策略全集 · '+strategies.length+' 条';
+  document.getElementById('emptyCount').textContent = strategies.length;
+  pollStatus();  // 首次加载状态
+  renderTaskList();
+  if (taskList.length > 0) viewTask(taskList[0].name);
+  if (statusInterval) clearInterval(statusInterval);
+  statusInterval = setInterval(pollStatus, 3000);  // 每 3s 刷新
+}
+
+function renderTaskList() {
+  const el = document.getElementById('taskList');
+  const kw = (document.getElementById('taskSearch')?.value||'').toLowerCase();
+  const flt = document.getElementById('taskFilter')?.value||'';
+  const filtered = taskList.filter(t => {
+    if (flt === '1' && !t.enabled) return false;
+    if (flt === '0' && t.enabled) return false;
+    if (kw && !t.name.toLowerCase().includes(kw)) return false;
+    return true;
+  });
+  el.innerHTML = filtered.map(t => {
+    const st = taskStatus[t.name] || {};
+    const running = st.status === 'running';
+    const elapsed = running && st.started_at ? formatElapsed(st.started_at) : '';
+    return `<div class="task-item${curTask&&curTask.name===t.name?' active':''} ${t.enabled?'si-on':'si-off'}${t.schedule_mode==='real'?' si-real':t.schedule_mode==='sim'?' si-sim':''}" onclick="viewTask('${t.name}')">
+      <div class="task-indicator ${t.enabled?'on':'off'}"></div>
+      <div class="task-info">
+        <div class="task-name">${t.name} <span class="${t.enabled?'badge-on':'badge-off'}">${t.enabled?'启用':'停用'}</span></div>
+        <div class="task-meta">${t.strategy_count||'全部'} 条策略 · ${t.schedule_time||'手动'}</div>
+      </div>
+      <div class="task-status-r">${running
+        ? '<span class="status-label running">运行中</span><span class="status-elapsed"><span class="dot running"></span>'+elapsed+'</span>'
+        : '<span class="status-label"><span class="dot stopped"></span>停止</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function viewTask(name) {
+  curIsNew = false;
+  const res = await api('get?name='+encodeURIComponent(name));
+  if (!res || res.error) return;
+  curTask = res;
+  strategies = res._strategies_from_csv || strategies;
+  const rp = document.getElementById('rightPanel');
+  rp.className = 'right ' + (res.enabled ? 'si-on' : 'si-off');
+  renderTaskList();
+  showViewPanel();
+}
+
+function showViewPanel() {
+  document.getElementById('panelEmpty').style.display = 'none';
+  document.getElementById('panelEdit').style.display = 'none';
+  const pv = document.getElementById('panelView');
+  pv.style.display = 'block';
+
+  const task = curTask, sch = task.schedule || {}, days = ['一','二','三','四','五','六','日'];
+  const ids = task.strategy_ids || [], wm = task.weight_mode || '';
+  const modeLabel = sch.mode === 'sim' ? 'Sim 模式' : 'Real 模式';
+
+  const scheduleHTML = sch.time
+    ? '<div class="schedule-card"><div class="icon">⏰</div><div class="info"><div class="line1">'
+      + ((sch.dow||[]).length===7?'每天':(sch.dow||[]).map(d=>days[d-1]).join(' ')) + ' ' + sch.time + ' 自动执行'
+      + '</div><div class="line2">'+modeLabel+'</div></div><div class="days">'
+      + days.map((d,i)=>'<span class="'+((sch.dow||[]).includes(i+1)?'on':'off')+'">'+d+'</span>').join('')
+      + '</div></div>'
+    : '<div class="no-schedule"><span>⏰ 未设置定时，只能手动启动</span><button class="btn-link" onclick="editTask()">设置定时</button></div>';
+
+  pv.innerHTML = `
+    <div class="right-header">
+      <div><h3>${task.name}</h3><div class="updated">${task.description||'策略 '+ids.length+' 条'}</div>
+      <div class="last-run" id="vRunInfo"></div></div>
+      <div class="right-actions">
+        <div class="enable-toggle">
+          <label class="switch"><input type="checkbox"${task.enabled?' checked':''} onchange="setEnable(this.checked)"><span class="slider"></span></label>
+          <span class="label${task.enabled?' active':''}">${task.enabled?'已启用':'已停用'}</span>
+        </div>
+        <button class="btn btn-start" id="vRunBtn" onclick="runTask()">⚡ 立即运行</button>
+        <button class="btn-icon" title="编辑" onclick="editTask()">✎</button>
+        <button class="btn-icon danger" onclick="delTask()">⌫</button>
+      </div>
+    </div>
+    ${scheduleHTML}
+    <div class="strategy-selector">
+      <div class="toolbar">
+        <div class="left"><span class="count">策略 · <span id="vCount">${ids.length||'全部'}</span> / ${strategies.length}</span>
+          <span class="hint"><input type="checkbox" id="vShowAll" onchange="renderViewRows()" style="margin-left:8px"><label for="vShowAll" style="font-size:12px;color:#86868b">显示全集</label></span>
+          <button class="btn btn-secondary" onclick="fetchQuotes()" style="font-size:12px;padding:5px 14px;background:#fce8e6;border-color:#f5c6c0;color:#c0392b;font-weight:500">📈 行情</button>
+        </div>
+        <div class="search-bar">
+          <select id="vStage" onchange="renderViewRows()" style="width:80px;padding:5px;border:1px solid #d2d2d7;border-radius:6px;font-size:12px;background:#fff"><option value="all">全部阶段</option><option value="2">实盘</option><option value="1">可测</option><option value="0">开发</option><option value="9">冻结</option></select>
+          <input placeholder="搜索" id="vSearch" oninput="renderViewRows()" style="max-width:100px">
+          <select id="vPool" onchange="renderViewRows()"></select>
+        </div>
+      </div>
+      <div id="vQuotes" style="display:none"></div>
+      <div class="strategy-rows" id="vRows"></div>
+      <div class="weight-mode-select">
+        <label>权重模式</label>
+        <select id="vWmode" onchange="setWeightMode()">
+          <option value="weight_1"${wm==='weight_1'?' selected':''}>卡玛加权</option>
+          <option value="weight_2"${wm==='weight_2'?' selected':''}>卡玛/波动率加权</option>
+          <option value=""${!wm?' selected':''}>1/N 均分</option>
+        </select>
+        <span class="summary" id="vSummary"></span>
+      </div>
+    </div>`;
+
+  const pools = [...new Set(strategies.map(s=>s.pool_id).filter(Boolean).sort())];
+  const pf = document.getElementById('vPool');
+  pf.innerHTML = '<option value="">全部池</option>'+pools.map(p=>`<option value="${p}">池${p}</option>`).join('');
+  renderViewRows();
+  renderViewRunInfo();
+  renderQuoteSummary();  // 恢复缓存的行情
+}
+
+async function renderViewRows() {
+  const task = curTask; if (!task) return;
+  const ids = task.strategy_ids || [], wm = document.getElementById('vWmode').value;
+  const kw = (document.getElementById('vSearch')?.value||'').toLowerCase();
+  const pool = document.getElementById('vPool')?.value||'';
+  const selSet = new Set(ids.map(s=>s.sid+':'+s.pool_id));
+
+  let wmap = {};
+  if (wm) {
+    const r = await api('calc_weights','POST',{weight_mode:wm,strategy_ids:ids});
+    for (const w of (r.weights||[])) wmap[w.sid+':'+w.pool_id] = w.weight;
+  }
+  const totalW = Object.values(wmap).reduce((a,b)=>a+b,0);
+  document.getElementById('vSummary').textContent = totalW>0 ? '✓ 权重合计 '+totalW.toFixed(3) : '';
+  document.getElementById('vCount').textContent = ids.length||'全部';
+  const vSel = new Set(ids.map(s=>s.sid+':'+s.pool_id));
+  const vVis = strategies.filter(s => {
+    const sv = document.getElementById('vStage')?.value||'';
+    const kw = (document.getElementById('vSearch')?.value||'').toLowerCase();
+    const pool = document.getElementById('vPool')?.value||'';
+    if (pool && s.pool_id !== pool) return false;
+    if (sv !== 'all' && s.stage != parseInt(sv)) return false;
+    if (kw && !('S'+s.sid+':'+s.pool_id).toLowerCase().includes(kw) && !(s.sid+'').includes(kw)) return false;
+    return true;
+  });
+  const showAll = document.getElementById('vShowAll')?.checked || false;
+
+  const filtered = strategies.filter(s => {
+    const vstg = document.getElementById('vStage')?.value||'';
+    if (pool && s.pool_id !== pool) return false;
+    if (vstg !== 'all' && s.stage != parseInt(vstg)) return false;
+    if (kw && !('S'+s.sid+':'+s.pool_id).toLowerCase().includes(kw) && !(s.sid+'').includes(kw)) return false;
+    if (!showAll && !selSet.has(s.sid+':'+s.pool_id)) return false;
+    return true;
+  });
+
+  document.getElementById('vRows').innerHTML = filtered.map(s => {
+    const key = s.sid+':'+s.pool_id, inc = selSet.has(key);
+    const w = wmap[key]||0, c = s.avg_calmar||0, v = s.avg_volatility||0;
+    return `<div class="strategy-row${inc?' included':''}" style="cursor:default">
+      <div class="check">${inc?'✓':''}</div><div class="sid">S${s.sid}</div>
+      <div class="name"><span title="S${s.sid} ${s.full_name||s.name||''}">${s.name||('S'+s.sid)}</span> <span class="pool-tag" title="池${s.pool_id}: ${s.pool_name||''}">池${s.pool_id}</span> <span class="stage-tag ${s.stage===2?'live':s.stage===9?'paused':'dev'}">${s.stage===2?"实盘":s.stage===1?"可测":s.stage===9?"冻结":"开发"}</span></div>
+      <div class="metrics">卡玛 ${c.toFixed(2)} · 波动 ${v.toFixed(2)}</div>
+      <div class="weight ${w>0?'nonzero':'zero'}">w=${w.toFixed(3)}</div>
+    </div>`;
+  }).join('');
+}
+
+let _quoteCache = {};  // {taskName: quoteData}
+async function fetchQuotes() {
+  const task = curTask; if (!task) return;
+  const ids = task.strategy_ids || [];
+  if (!ids.length) return alert('当前没有已选策略');
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '加载中...';
+  try {
+    const r = await api('quotes','POST',{strategy_ids:ids});
+    if (r.error) { alert(r.error); return; }
+    _quoteCache[task.name] = r;
+    renderQuoteSummary();
+    btn.textContent = '📈 刷新';
+  } catch(e) { alert('行情加载失败: '+e.message); }
+  btn.disabled = false;
+}
+function renderQuoteSummary() {
+  const r = curTask ? _quoteCache[curTask.name] : null;
+  if (!r || !r.pools) { document.getElementById('vQuotes').style.display = 'none'; return; }
+  const qs = document.getElementById('vQuotes');
+  qs.style.display = 'block';
+  
+  // 每个池一张卡片
+  qs.innerHTML = r.pools.map((p, idx) => {
+    const s = p.summary, t = s.up + s.down + s.flat;
+    const upPct = t>0 ? s.up/t*100 : 0, downPct = t>0 ? s.down/t*100 : 0, flatPct = 100-upPct-downPct;
+    
+    const rows = p.stocks.map(q => {
+      const pct = q.change_pct==null ? '-' : (q.change_pct>0?'+':'')+q.change_pct.toFixed(1)+'%';
+      const cls = q.change_pct>0?'up':q.change_pct<0?'down':'flat';
+      return `<div class="qs-row"><span class="qs-code">${q.code.toUpperCase()}</span><span class="qs-name">${q.name||''}</span><span class="qs-price">${q.price||'-'}</span><span class="qs-pct ${cls}">${pct}</span></div>`;
+    }).join('');
+    
+    return `<div style="margin-bottom:8px">
+      <div class="quote-summary" style="cursor:pointer" onclick="toggleQuotePool(${idx})">
+        <div class="qs-icon">📊</div>
+        <div class="qs-info">
+          <div class="qs-line1">池${p.pool_id}（前${p.shown}）<span class="qs-up">↑${s.up}</span> <span class="qs-down">↓${s.down}</span> <span class="qs-total">→${s.flat}</span></div>
+          <div class="qs-line2">${p.pool_name} · 共${p.total}只票<span id="qsToggle_${idx}" style="margin-left:8px;color:#0071e3;font-size:11px">展开 ▼</span></div>
+        </div>
+        <div class="qs-bar"><div class="up" style="width:${upPct}%"></div><div class="down" style="width:${downPct}%"></div><div class="flat" style="width:${flatPct}%"></div></div>
+      </div>
+      <div class="quote-stock-list" id="qsDetail_${idx}" style="display:none">${rows}</div>
+    </div>`;
+  }).join('');
+}
+function toggleQuotePool(idx) {
+  const detail = document.getElementById('qsDetail_'+idx);
+  const toggle = document.getElementById('qsToggle_'+idx);
+  if (!detail || !toggle) return;
+  if (detail.style.display === 'block') {
+    detail.style.display = 'none';
+    toggle.textContent = '展开 ▼';
+  } else {
+    detail.style.display = 'block';
+    toggle.textContent = '收起 ▲';
+  }
+}
+
+async function toggle(sid, pid) {
+  const task = curTask; if (!task) return;
+  let ids = (task.strategy_ids || []).slice();
+  const found = ids.findIndex(s => s.sid===parseInt(sid) && s.pool_id===pid);
+  if (found >= 0) ids.splice(found,1);
+  else ids.push({sid:parseInt(sid), pool_id: pid});
+  task.strategy_ids = ids;
+  await api('save','POST',{name:task.name,strategy_ids:ids});
+  renderViewRows();
+}
+
+async function setWeightMode() {
+  const wm = document.getElementById('vWmode').value;
+  curTask.weight_mode = wm;
+  await api('save','POST',{name:curTask.name,weight_mode:wm});
+  renderViewRows();
+}
+
+async function setEnable(val) {
+  await api('save','POST',{name:curTask.name,enabled:!!val});
+  curTask.enabled = !!val;
+  renderTaskList();
+  showViewPanel();
+}
+
+async function runTask() {
+  await api('save','POST',{name:curTask.name,enabled:true});
+  const r = await api('trigger','POST',{name:curTask.name,mode:(curTask.schedule||{}).mode||'real'});
+  alert(r.msg||(r.ok?'已触发':'触发失败'));
+  pollStatus();  // 立即刷新状态
+}
+
+async function delTask() {
+  if (!confirm('确认删除「'+curTask.name+'」？')) return;
+  await api('delete?name='+encodeURIComponent(curTask.name));
+  curTask = null;
+  taskList = await api('list');
+  renderTaskList();
+  document.getElementById('panelEmpty').style.display = 'block';
+  document.getElementById('panelView').style.display = 'none';
+  document.getElementById('panelEdit').style.display = 'none';
+}
+
+function editTask(isNew) {
+  curIsNew = !!isNew;
+  document.getElementById('panelEmpty').style.display = 'none';
+  document.getElementById('panelView').style.display = 'none';
+  const pe = document.getElementById('panelEdit');
+  pe.style.display = 'block';
+
+  const task = isNew ? {name:'',enabled:true,schedule:{time:'15:30',mode:'real',dow:[1,2,3,4,5,6,7]},strategy_ids:[],weight_mode:'weight_1'} : curTask;
+  const sch = task.schedule || {}, days = ['一','二','三','四','五','六','日'], dow = sch.dow || [], ids = task.strategy_ids || [];
+  if (!isNew) curTask = task;
+
+  pe.innerHTML = `
+    <div class="right-header">
+      <div><h3>${isNew?'新建任务':'编辑任务'}</h3></div>
+      <div class="right-actions">
+        <button class="btn btn-primary" style="background:#34c759" onclick="saveEdit()">💾 保存</button>
+        <button class="btn-icon" onclick="cancelEdit()">✕</button>
+      </div>
+    </div>
+    <div class="edit-card">
+      <div class="edit-field"><label>任务名称</label><input type="text" id="editName" value="${task.name||''}"></div>
+      <div class="edit-field"><label>描述（可选）</label><input type="text" id="editDesc" value="${task.description||''}"></div>
+      <div class="sched-edit">
+        <div class="toggle-wrap">
+          <label class="toggle-switch"><input type="checkbox" id="schEnabled"${sch.time?' checked':''} onchange="schToggle()"><span class="toggle-slider"></span></label>
+          <div><div class="toggle-label">定时自动执行</div><div class="toggle-hint">开启后按计划自动运行</div></div>
+        </div>
+        <div class="schedule-config" id="schConfig" style="opacity:${sch.time?'1':'0.3'};pointer-events:${sch.time?'auto':'none'}">
+          <div class="time-row">
+            <input type="time" id="editTime" value="${sch.time||'15:30'}">
+            <select id="editMode"><option value="real"${(sch.mode||'real')==='real'?' selected':''}>Real 模式</option><option value="sim"${sch.mode==='sim'?' selected':''}>Sim 模式</option></select>
+          </div>
+          <div class="period-presets">
+            <div class="period-btn${dow.length===7?' selected':''}" onclick="selPer(this,0)">每天</div>
+            <div class="period-btn${dow.length===5&&dow.join()==='1,2,3,4,5'?' selected':''}" onclick="selPer(this,1)">工作日</div>
+            <div class="period-btn" onclick="selPer(this,-1)">自定义</div>
+          </div>
+          <div class="dow-grid">${days.map((d,i)=>'<div class="dow-btn'+(dow.includes(i+1)?' selected':'')+'" onclick="tglDow(this)">'+d+'</div>').join('')}</div>
+        </div>
+      </div>
+    </div>
+    <div class="strategy-selector" style="margin-top:16px">
+      <div class="toolbar">
+        <div class="left"><span class="count">策略全集 · <span id="eCount">0</span> / ${strategies.length}</span>
+          <span class="hint">点击行切换勾选 <input type="checkbox" id="eSelectAll" onchange="selectAllEdit()" style="margin-left:8px"><label for="eSelectAll" style="font-size:12px;color:#86868b">全选</label></span>
+        </div>
+        <div class="search-bar">
+          <select id="eStage" onchange="renderEditRows()" style="width:80px;padding:5px;border:1px solid #d2d2d7;border-radius:6px;font-size:12px;background:#fff"><option value="all">全部阶段</option><option value="2">实盘</option><option value="1">可测</option><option value="0">开发</option><option value="9">冻结</option></select>
+          <input placeholder="搜索" id="eSearch" oninput="renderEditRows()" style="max-width:100px">
+          <select id="ePool" onchange="renderEditRows()"></select>
+        </div>
+      </div>
+      <div class="strategy-rows" style="max-height:350px;overflow-y:auto" id="eRows"></div>
+      <div class="weight-mode-select">
+        <label>权重模式</label>
+        <select id="eWmode" onchange="editSetWeight()">
+          <option value="weight_1"${task.weight_mode==='weight_1'?' selected':''}>卡玛加权</option>
+          <option value="weight_2"${task.weight_mode==='weight_2'?' selected':''}>卡玛/波动率加权</option>
+          <option value=""${!task.weight_mode?' selected':''}>1/N 均分</option>
+        </select>
+        <span class="summary" id="eSummary"></span>
+      </div>
+    </div>`;
+
+  const pools = [...new Set(strategies.map(s=>s.pool_id).filter(Boolean).sort())];
+  document.getElementById('ePool').innerHTML = '<option value="">全部池</option>'+pools.map(p=>`<option value="${p}">池${p}</option>`).join('');
+  renderEditRows();
+}
+
+// edit mode: toggle by storing in window._editIds
+window._editIds = [];
+async function renderEditRows() {
+  const ids = (curTask||{}).strategy_ids || window._editIds;
+  const wm = document.getElementById('eWmode').value;
+  const kw = (document.getElementById('eSearch')?.value||'').toLowerCase();
+  const pool = document.getElementById('ePool')?.value||'';
+  const selSet = new Set(ids.map(s=>s.sid+':'+s.pool_id));
+
+  let wmap = {};
+  if (wm) {
+    const r = await api('calc_weights','POST',{weight_mode:wm,strategy_ids:ids});
+    for (const w of (r.weights||[])) wmap[w.sid+':'+w.pool_id] = w.weight;
+  }
+  document.getElementById('eCount').textContent = ids.length;
+  const eSel = new Set(ids.map(s=>s.sid+':'+s.pool_id));
+  const eVis = strategies.filter(s => {
+    const sv = document.getElementById('eStage')?.value||'';
+    const kw = (document.getElementById('eSearch')?.value||'').toLowerCase();
+    const pool = document.getElementById('ePool')?.value||'';
+    if (pool && s.pool_id !== pool) return false;
+    if (sv !== 'all' && s.stage != parseInt(sv)) return false;
+    if (kw && !('S'+s.sid+':'+s.pool_id).toLowerCase().includes(kw) && !(s.sid+'').includes(kw)) return false;
+    return true;
+  });
+  document.getElementById('eSelectAll').checked = eVis.length>0 && eVis.every(s => eSel.has(s.sid+':'+s.pool_id));
+  document.getElementById('eSummary').textContent = '✅ 已选 '+ids.length+' 条';
+
+  const filtered = strategies.filter(s => {
+    const vstg = document.getElementById('eStage')?.value||'';
+    if (pool && s.pool_id !== pool) return false;
+    if (vstg !== 'all' && s.stage != parseInt(vstg)) return false;
+    if (kw && !('S'+s.sid+':'+s.pool_id).toLowerCase().includes(kw) && !(s.sid+'').includes(kw)) return false;
+    return true;
+  });
+  document.getElementById('eRows').innerHTML = filtered.map(s => {
+    const key = s.sid+':'+s.pool_id, inc = selSet.has(key);
+    const w = wmap[key]||0, c = s.avg_calmar||0, v = s.avg_volatility||0;
+    return `<div class="strategy-row${inc?' included':''}" onclick="editToggle('${s.sid}','${s.pool_id}')">
+      <div class="check">${inc?'✓':''}</div><div class="sid">S${s.sid}</div>
+      <div class="name"><span title="S${s.sid} ${s.full_name||s.name||''}">${s.name||('S'+s.sid)}</span> <span class="pool-tag" title="池${s.pool_id}: ${s.pool_name||''}">池${s.pool_id}</span> <span class="stage-tag ${s.stage===2?'live':s.stage===9?'paused':'dev'}">${s.stage===2?"实盘":s.stage===1?"可测":s.stage===9?"冻结":"开发"}</span></div>
+      <div class="metrics">卡玛 ${c.toFixed(2)} · 波动 ${v.toFixed(2)}</div>
+      <div class="weight ${w>0?'nonzero':'zero'}">w=${w.toFixed(3)}</div>
+    </div>`;
+  }).join('');
+}
+function editToggle(sid, pid) {
+  const ids = (curTask||{}).strategy_ids || window._editIds;
+  const found = ids.findIndex(s => s.sid===parseInt(sid) && s.pool_id===pid);
+  if (found >= 0) ids.splice(found,1);
+  else ids.push({sid:parseInt(sid), pool_id: pid});
+  if (curTask) curTask.strategy_ids = ids;
+  else window._editIds = ids;
+  renderEditRows();
+}
+function editSetWeight() {
+  if (curTask) curTask.weight_mode = document.getElementById('eWmode').value;
+  renderEditRows();
+}
+
+function schToggle() {
+  const en = document.getElementById('schEnabled');
+  const cfg = document.getElementById('schConfig');
+  cfg.style.opacity = en.checked ? '1' : '0.3';
+  cfg.style.pointerEvents = en.checked ? 'auto' : 'none';
+}
+function selPer(el, t) {
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  const btns = document.querySelectorAll('.dow-grid .dow-btn');
+  if (t === 0) btns.forEach(b => b.classList.add('selected'));
+  else if (t === 1) btns.forEach((b,i) => i<5 ? b.classList.add('selected') : b.classList.remove('selected'));
+}
+function tglDow(el) { el.classList.toggle('selected'); document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('selected')); document.querySelector('.period-btn:last-child').classList.add('selected'); }
+
+async function saveEdit() {
+  const name = document.getElementById('editName').value.trim();
+  if (!name) return alert('任务名不能为空');
+  const description = document.getElementById('editDesc')?.value.trim() || '';
+  const schOn = document.getElementById('schEnabled').checked;
+  const time = schOn ? document.getElementById('editTime').value : '';
+  const mode = document.getElementById('editMode').value;
+  const dow = schOn ? [...document.querySelectorAll('.dow-grid .dow-btn')].map((b,i) => b.classList.contains('selected') ? i+1 : 0).filter(Boolean) : [];
+  const wm = document.getElementById('eWmode').value;
+  const ids = (curTask||{}).strategy_ids || window._editIds;
+  const enabled = (curTask||{}).enabled !== false;
+  const oldName = (!curIsNew && curTask && curTask.name !== name) ? curTask.name : '';
+  await api('save','POST',{name,description,enabled,schedule:{time,mode,dow},strategy_ids:ids,weight_mode:wm,old_name:oldName});
+  window._editIds = [];
+  init().then(() => viewTask(name));
+}
+
+function cancelEdit() {
+  window._editIds = [];
+  if (curTask) viewTask(curTask.name);
+  else {
+    curIsNew = false;
+    document.getElementById('panelEdit').style.display = 'none';
+    document.getElementById('panelEmpty').style.display = 'block';
+  }
+}
+
+
+function selectAllView() {
+  const cb = document.getElementById('vSelectAll');
+  const vis = strategies.filter(s => {
+    const vstg = document.getElementById('vStage')?.value||'';
+    const kw = (document.getElementById('vSearch')?.value||'').toLowerCase();
+    const pool = document.getElementById('vPool')?.value||'';
+    if (pool && s.pool_id !== pool) return false;
+    if (vstg !== 'all' && s.stage != parseInt(vstg)) return false;
+    if (kw && !('S'+s.sid+':'+s.pool_id).toLowerCase().includes(kw) && !(s.sid+'').includes(kw)) return false;
+    return true;
+  });
+  const selSet = new Set((curTask?.strategy_ids||[]).map(s=>s.sid+':'+s.pool_id));
+  if (cb.checked) {
+    let ids = (curTask?.strategy_ids||[]).slice();
+    vis.forEach(s => { const k=s.sid+':'+s.pool_id; if (!selSet.has(k)) ids.push({sid:s.sid,pool_id:s.pool_id}); });
+    if (curTask) curTask.strategy_ids = ids;
+  } else {
+    const visKeys = new Set(vis.map(s=>s.sid+':'+s.pool_id));
+    if (curTask) curTask.strategy_ids = (curTask.strategy_ids||[]).filter(s => !visKeys.has(s.sid+':'+s.pool_id));
+  }
+  renderViewRows();
+}
+function selectAllEdit() {
+  const cb = document.getElementById('eSelectAll');
+  const vis = strategies.filter(s => {
+    const estg = document.getElementById('eStage')?.value||'';
+    const kw = (document.getElementById('eSearch')?.value||'').toLowerCase();
+    const pool = document.getElementById('ePool')?.value||'';
+    if (pool && s.pool_id !== pool) return false;
+    if (estg !== 'all' && s.stage != parseInt(estg)) return false;
+    if (kw && !('S'+s.sid+':'+s.pool_id).toLowerCase().includes(kw) && !(s.sid+'').includes(kw)) return false;
+    return true;
+  });
+  const selSet = new Set((window._editIds||curTask?.strategy_ids||[]).map(s=>s.sid+':'+s.pool_id));
+  if (cb.checked) {
+    let ids = (window._editIds||curTask?.strategy_ids||[]).slice();
+    vis.forEach(s => { const k=s.sid+':'+s.pool_id; if (!selSet.has(k)) ids.push({sid:s.sid,pool_id:s.pool_id}); });
+    if (curTask) curTask.strategy_ids = ids;
+    else window._editIds = ids;
+  } else {
+    const visKeys = new Set(vis.map(s=>s.sid+':'+s.pool_id));
+    const newIds = (window._editIds||curTask?.strategy_ids||[]).filter(s => !visKeys.has(s.sid+':'+s.pool_id));
+    if (curTask) curTask.strategy_ids = newIds;
+    else window._editIds = newIds;
+  }
+  renderEditRows();
+}
+
+init();
+</script>
+</body></html>

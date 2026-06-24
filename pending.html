@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>待处理订单</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+h1 { font-size: 22px; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #888; margin-bottom: 16px; }
+.toast { position: fixed; top: 16px; right: 16px; padding: 12px 20px; border-radius: 6px; color: #fff; font-size: 14px; z-index: 999; display: none; max-width: 500px; line-height: 1.5; white-space: pre-wrap; }
+.toast-ok { background: #27ae60; }
+.toast-err { background: #e74c3c; }
+.dir-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+.dir-item { background: #fff; border: 1px solid #e0e0e0; border-left: 4px solid #e0e0e0; border-radius: 6px; padding: 10px 14px; cursor: pointer; transition: 0.2s; }
+.dir-item:hover { border-color: #4a90d9; }
+.dir-item.active { border-color: #4a90d9; border-left-color: #4a90d9; }
+.dir-item.dirty { border-left-color: #e74c3c; }
+.dir-item .dir-header { display: flex; justify-content: space-between; align-items: center; }
+.dir-item .dir-date { font-size: 12px; color: #888; min-width: 90px; }
+.dir-item .dir-name { font-weight: 600; color: #333; flex: 1; margin: 0 12px; }
+.dir-item .dir-count { font-size: 13px; color: #888; }
+.dir-item .file-list { margin-top: 6px; display: none; flex-wrap: wrap; gap: 4px; }
+.dir-item.active .file-list { display: flex; }
+.file-tab { padding: 3px 10px; border-radius: 4px; font-size: 12px; background: #eef3fb; color: #4a90d9; cursor: pointer; border: 1px solid transparent; }
+.file-tab:hover { background: #d6e4f5; }
+.file-tab.sel { background: #4a90d9; color: #fff; }
+.btn-row { margin: 12px 0; display: flex; gap: 10px; align-items: center; }
+.btn { display: inline-block; padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
+.btn-submit { background: #27ae60; color: #fff; }
+.btn-submit:hover { background: #1e8449; }
+.btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+.result-area { background: #1a1a2e; color: #0f0; font-family: monospace; font-size: 12px; padding: 10px 14px; border-radius: 6px; margin-top: 10px; display: none; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
+.result-area.show { display: block; }
+.dir-old { opacity: 0.55; }
+.btn-save { background: #4a90d9; color: #fff; padding: 4px 12px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
+.btn-save:hover { background: #357abd; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; background: #fff; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin: 12px 0; }
+th { background: #f0f0f0; padding: 7px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #ddd; white-space: nowrap; }
+td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+tr:hover td { background: #fafafa; }
+tr.recalced td { background: #fffde7; }
+tr.saved td { background: #ffeaea; }
+td input { width: 90px; padding: 3px 5px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; }
+td input:focus { border-color: #4a90d9; outline: none; }
+.nav { margin-bottom: 16px; }
+.nav a { color: #4a90d9; text-decoration: none; font-size: 14px; }
+.nav a:hover { text-decoration: underline; }
+.nav span { color: #999; margin: 0 6px; }
+.empty { color: #999; text-align: center; padding: 40px; }
+</style>
+</head>
+<body>
+<div class="nav"><a href="/">🏠 首页</a> <span>›</span> 待处理订单</div>
+<div id="toast" class="toast"></div>
+<div id="app"></div>
+
+<script>
+let allDirs = [];
+let currentDir = null, currentFile = null, currentData = null;
+let submitting = false;
+
+function toast(msg, ok, dur) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast ' + (ok ? 'toast-ok' : 'toast-err');
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', dur || 5000);
+}
+
+function parseDate(name) {
+  const m = name.match(/^(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})/);
+  return m ? m[1]+'-'+m[2]+'-'+m[3]+' '+m[4]+':'+m[5]+':'+m[6] : '';
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/pending/list');
+    const data = await r.json();
+    if (data.error) { document.getElementById('app').innerHTML='<div class="empty">'+data.error+'</div>'; return; }
+    if (!data.length) { document.getElementById('app').innerHTML='<h1>📂 待处理订单: (0个目录)</h1><div class="empty">📭 暂无待处理目录</div>'; return; }
+    allDirs = data.map(d => ({ name: d.name, date: parseDate(d.name), dirDate: d.name.substring(0,8), files: d.files, dealCount: d.deal_count||0, isNew: d.name.endsWith('_NEW') }));
+    allDirs.sort((a,b) => a.name.localeCompare(b.name));
+    renderDirs();
+  } catch(e) { document.getElementById('app').innerHTML='<div class="empty">❌ '+e.message+'</div>'; }
+}
+
+function renderDirs() {
+  let html = '<h1>📂 待处理订单: ('+allDirs.length+'个目录)</h1>';
+  html += '<div class="subtitle">recalced=1 的订单可修改价格/数量并保存，改好后点提交</div>';
+  html += '<div class="btn-row"><button class="btn btn-submit" id="submitBtn" onclick="doSubmit()" '+(submitting?'disabled':'')+'>🚀 提交全部</button></div>';
+  html += '<div id="submitLog" class="result-area'+(submitting?' show':'')+'"></div>';
+  html += '<div class="dir-list">';
+  for (const d of allDirs) {
+    const isActive = currentDir === d.name;
+    const isDirty = d.dealCount > 0;
+    const isOld = !d.isNew;
+    html += '<div class="dir-item'+(isActive?' active':'')+(isDirty?' dirty':'')+(isOld?' dir-old':'')+'">';
+    html += '<div class="dir-header" onclick="toggleDir(\''+d.name+'\')">';
+    html += '<span class="dir-date">'+d.date+'</span><span class="dir-name">'+d.name+'</span><span class="dir-count">'+d.files.length+'个</span>';
+    html += '</div><div class="file-list">';
+    for (const f of d.files) {
+      const isSel = currentDir===d.name && currentFile===f;
+      html += '<span class="file-tab'+(isSel?' sel':'')+'" onclick="event.stopPropagation();selectFile(\''+d.name+'\',\''+f+'\')">📄 '+f+'</span>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div><div id="tableArea"></div>';
+  document.getElementById('app').innerHTML = html;
+  if (currentDir && currentFile) loadTable(currentDir, currentFile);
+}
+
+function toggleDir(dir) { currentDir = (currentDir===dir) ? null : dir; currentFile = null; currentData = null; renderDirs(); }
+
+async function selectFile(dir, file) { currentDir = dir; currentFile = file; await loadTable(dir, file); renderDirs(); }
+
+async function loadTable(dirName, fileName) {
+  const r = await fetch('/api/pending/file?dir='+encodeURIComponent(dirName)+'&file='+encodeURIComponent(fileName));
+  const data = await r.json();
+  if (data.error) { toast(data.error, false); return; }
+  currentData = data;
+  let hasRecalced = data.rows.some(r => String(r.recalced||'').trim() === '1');
+  let html = '<h3>📄 '+fileName+' ('+data.total+' 行)</h3>';
+  if (hasRecalced) {
+    html += '<div class="btn-row" style="margin-bottom:8px">';
+    html += '<button class="btn btn-submit" onclick="saveAll()">💾 全部保存</button>';
+    html += '<button class="btn btn-submit" style="background:#e74c3c" onclick="undoAll()">↩ 全部撤销</button>';
+    html += '</div>';
+  }
+  html += '<div style="overflow-x:auto"><table><thead><tr>';
+  for (const h of data.headers) html += '<th>'+h+'</th>';
+  html += '<th>操作</th></tr></thead><tbody>';
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i];
+    const recalced = String(row.recalced||'').trim() === '1';
+    const isDeal = String(row.deal||'').trim() === 'True';
+    html += '<tr class="'+(isDeal?'saved':recalced?'recalced':'')+'">';
+    for (const h of data.headers) {
+      const val = String(row[h]||'');
+      html += '<td>'+(recalced && (h==='Price'||h==='Cnt') ? '<input id="cell_'+i+'_'+h+'" value="'+val+'">' : val)+'</td>';
+    }
+    let btns = '';
+    if (recalced) {
+      btns += '<button class="btn-save" onclick="saveRow('+i+')">💾 保存</button> ';
+      if (isDeal) btns += '<button class="btn-save" style="background:#e74c3c" onclick="undoRow('+i+')">↩ 撤消</button>';
+    }
+    html += '<td>'+btns+'</td></tr>';
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('tableArea').innerHTML = html;
+}
+
+async function saveRow(rowIdx) {
+  const row = currentData.rows[rowIdx];
+  const pEl = document.getElementById('cell_'+rowIdx+'_Price');
+  const cEl = document.getElementById('cell_'+rowIdx+'_Cnt');
+  const price = pEl ? pEl.value.trim() : (row.Price||'');
+  const cnt = cEl ? cEl.value.trim() : (row.Cnt||'');
+  const r = await fetch('/api/pending/save', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({dir: currentDir, file: currentFile, row_index: rowIdx, price, cnt})
+  });
+  const result = await r.json();
+  if (result.ok) {
+    toast('✅ 第 '+(rowIdx+1)+' 行已保存', true, 2000);
+    await load(); // 全量刷新，目录颜色从 deal_count 重新判断
+    if (currentDir && currentFile) { await selectFile(currentDir, currentFile); }
+  } else {
+    toast('❌ '+result.error, false);
+  }
+}
+
+async function undoRow(rowIdx) {
+  const r = await fetch('/api/pending/undo', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({dir: currentDir, file: currentFile, row_index: rowIdx})
+  });
+  const result = await r.json();
+  if (result.ok) {
+    toast('↩ 第 '+(rowIdx+1)+' 行已撤消 (deal=False)', true, 2000);
+    await load(); // 全量刷新
+    if (currentDir && currentFile) { await selectFile(currentDir, currentFile); }
+  } else {
+    toast('❌ '+result.error, false);
+  }
+}
+
+async function saveAll() {
+  if (!currentData) return;
+  const recalcedIdx = [];
+  for (let i = 0; i < currentData.rows.length; i++) {
+    if (String(currentData.rows[i].recalced||'').trim() === '1') recalcedIdx.push(i);
+  }
+  if (!recalcedIdx.length) { toast('没有可保存的订单', false); return; }
+  if (!confirm('确认保存全部 '+recalcedIdx.length+' 行吗？')) return;
+  let ok = 0, fail = 0;
+  for (const i of recalcedIdx) {
+    const row = currentData.rows[i];
+    const pEl = document.getElementById('cell_'+i+'_Price');
+    const cEl = document.getElementById('cell_'+i+'_Cnt');
+    const r = await fetch('/api/pending/save', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dir: currentDir, file: currentFile, row_index: i,
+        price: pEl ? pEl.value.trim() : (row.Price||''),
+        cnt: cEl ? cEl.value.trim() : (row.Cnt||'')})
+    });
+    if ((await r.json()).ok) ok++; else fail++;
+  }
+  toast('💾 保存完成: '+ok+' 成功'+(fail>0?', '+fail+' 失败':''), fail===0, 3000);
+  await load();
+  if (currentDir && currentFile) await selectFile(currentDir, currentFile);
+}
+
+async function undoAll() {
+  if (!currentData) return;
+  const dealIdx = [];
+  for (let i = 0; i < currentData.rows.length; i++) {
+    if (String(currentData.rows[i].deal||'').trim() === 'True') dealIdx.push(i);
+  }
+  if (!dealIdx.length) { toast('没有已保存的订单可撤销', false); return; }
+  if (!confirm('确认撤销全部 '+dealIdx.length+' 行吗？(deal→False)')) return;
+  let ok = 0, fail = 0;
+  for (const i of dealIdx) {
+    const r2 = await fetch('/api/pending/undo', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dir: currentDir, file: currentFile, row_index: i})
+    });
+    if ((await r2.json()).ok) ok++; else fail++;
+  }
+  toast('↩ 撤销完成: '+ok+' 成功'+(fail>0?', '+fail+' 失败':''), fail===0, 3000);
+  await load();
+  if (currentDir && currentFile) await selectFile(currentDir, currentFile);
+}
+
+async function doSubmit() {
+  if (submitting) return;
+  if (!confirm('确认提交全部 '+(allDirs.length)+' 个目录的待处理订单？\n\n'+allDirs.map(d=>'• '+d.name+' ('+d.files.length+'个文件)').join('\n'))) return;
+  submitting = true;
+  const btn = document.getElementById('submitBtn');
+  const logEl = document.getElementById('submitLog');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 提交中...'; }
+  if (logEl) { logEl.classList.add('show'); logEl.textContent = '⏳ 正在通知AUTO提交...\n'; }
+
+  const r = await fetch('/api/pending/submit', {method: 'POST'});
+  const result = await r.json();
+  if (result.ok) {
+    logEl.textContent += result.msg + '\n';
+    logEl.textContent += '\n✅ 提交完成，2秒后刷新...';
+    setTimeout(() => { submitting = false; load(); }, 2000);
+  } else {
+    logEl.textContent += '⚠️ ' + result.msg + '\n';
+    submitting = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 提交全部'; }
+  }
+}
+
+load();
+</script>
+</body>
+</html>

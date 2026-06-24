@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>策略池管理</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif; background:#f5f5f7; color:#1d1d1f; padding:48px 32px; min-height:100vh; }
+.container { max-width:1040px; margin:0 auto; }
+.header { display:flex; align-items:center; gap:10px; margin-bottom:32px; }
+.header-icon { width:36px; height:36px; background:#e8e8ed; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.header h1 { font-size:20px; font-weight:600; }
+.header .badge { margin-left:auto; font-size:13px; color:#86868b; background:#e8e8ed; padding:6px 14px; border-radius:20px; }
+.layout { display:flex; gap:20px; align-items:flex-start; }
+.left { flex:1; min-width:280px; max-width:340px; }
+.right { flex:2; min-width:440px; background:#fff; border-radius:16px; padding:28px; box-shadow:0 1px 2px rgba(0,0,0,.05); transition:background .3s; }
+.right.paused-bg { background:#ededf0; }
+.right.live-bg { background:#ecf2fc; }
+.left-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.left-header h2 { font-size:12px; font-weight:600; color:#86868b; text-transform:uppercase; letter-spacing:.8px; }
+.filter-bar { display:flex; gap:6px; margin-bottom:10px; }
+.filter-bar input { flex:1; padding:6px 10px; border:1px solid #d2d2d7; border-radius:8px; font-size:13px; outline:none; background:#f5f5f7; }
+.filter-bar input:focus { border-color:#0071e3; background:#fff; }
+.filter-bar select { padding:6px 10px; border:1px solid #d2d2d7; border-radius:8px; font-size:13px; background:#fff; outline:none; }
+.strategy-list { background:#fff; border-radius:14px; padding:4px; box-shadow:0 1px 2px rgba(0,0,0,.05); min-height:200px; max-height:70vh; overflow-y:auto; }
+.strategy-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px; cursor:pointer; margin-bottom:2px; transition:background .15s; }
+.strategy-item.active { background:#eef1ff; }
+.strategy-item.si-paused { background:#ededf0; }
+.strategy-item.si-paused.active { background:#e0e0e5; }
+.strategy-item.si-live { background:#ecf2fc; }
+.strategy-item.si-live.active { background:#d9e5fa; }
+.strategy-item:not(.active):not(.si-paused):not(.si-live):hover { background:#f5f5f7; }
+.strategy-item.si-paused:not(.active):hover { background:#e4e4e8; }
+.strategy-item.si-live:not(.active):hover { background:#dfe8f8; }
+.stage-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.stage-dot.dev { background:#6c5ce7; box-shadow:0 0 0 2px rgba(108,92,231,.2); }
+.stage-dot.live { background:#34c759; box-shadow:0 0 0 2px rgba(52,199,89,.2); }
+.stage-dot.paused { background:#ff3b30; box-shadow:0 0 0 2px rgba(255,59,48,.2); }
+.strategy-item .sid-badge { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex-shrink:0; background:#dce0ff; color:#0071e3; }
+.si-info { flex:1; min-width:0; }
+.si-name { font-size:14px; font-weight:500; }
+.si-desc { font-size:11px; color:#86868b; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.si-stage-tag { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:500; white-space:nowrap; }
+.si-stage-tag.dev { background:#eeeaff; color:#6c5ce7; }
+.si-stage-tag.live { background:#eafaea; color:#34c759; }
+.si-stage-tag.paused { background:#ffe0e0; color:#ff3b30; }
+.right-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; }
+.right-header h3 { font-size:22px; font-weight:600; letter-spacing:-.5px; margin-bottom:4px; }
+.right-header .h3-sub { font-size:13px; color:#86868b; display:flex; align-items:center; gap:8px; }
+.right-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.btn { border:none; cursor:pointer; font-size:13px; font-weight:500; border-radius:8px; white-space:nowrap; }
+.btn-primary { padding:8px 18px; background:#0071e3; color:#fff; }
+.btn-primary:hover { background:#0060c3; }
+.btn-icon { width:36px; height:36px; background:#f5f5f7; border:none; border-radius:10px; font-size:15px; cursor:pointer; color:#1d1d1f; display:flex; align-items:center; justify-content:center; }
+.btn-icon:hover { background:#e8e8ed; }
+.btn-icon.danger { color:#ff3b30; }
+.btn-secondary { padding:8px 20px; background:#fff; color:#1d1d1f; border:1px solid #d2d2d7; border-radius:10px; font-size:14px; cursor:pointer; font-weight:500; }
+.btn-secondary:hover { background:#f5f5f7; }
+.info-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
+.info-card { background:#f5f5f7; border-radius:12px; padding:14px 16px; }
+.info-card .il { font-size:11px; color:#86868b; font-weight:500; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+.info-card .iv { font-size:15px; font-weight:500; }
+.info-card .iv .tag { font-size:11px; padding:2px 8px; border-radius:4px; margin-left:6px; font-weight:500; }
+.info-card .iv .tag.dev { background:#eeeaff; color:#6c5ce7; }
+.info-card .iv .tag.live { background:#eafaea; color:#34c759; }
+.info-card .iv .tag.paused { background:#ffe0e0; color:#ff3b30; }
+.factor-section { margin-bottom:16px; }
+.factor-section .fs-title { font-size:12px; font-weight:600; color:#86868b; text-transform:uppercase; letter-spacing:.8px; margin-bottom:8px; }
+.factor-card { background:#f5f5f7; border-radius:12px; padding:14px 16px; margin-bottom:6px; }
+.fc-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.fc-class { font-size:13px; font-family:'SF Mono','Courier New',monospace; font-weight:500; color:#0071e3; }
+.fc-label { font-size:11px; color:#86868b; background:#e8e8ed; padding:2px 8px; border-radius:4px; }
+.fc-params { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.fc-param { background:#fff; border-radius:8px; padding:8px 12px; }
+.fc-param .pk { font-size:11px; color:#636366; font-weight:600; font-family:'SF Mono',monospace; }
+.fc-param .pv { font-size:14px; font-weight:600; color:#1d1d1f; margin-top:1px; }
+.fc-param .pd { font-size:11px; color:#aeaeb2; margin-top:2px; }
+.desc-block { font-size:14px; line-height:1.5; color:#1d1d1f; background:#f5f5f7; border-radius:12px; padding:14px 16px; margin-bottom:20px; }
+.desc-block .dl { font-size:11px; color:#86868b; text-transform:uppercase; letter-spacing:.5px; font-weight:500; margin-bottom:4px; }
+.edit-card { background:#f5f5f7; border-radius:12px; padding:20px; margin-bottom:20px; }
+.edit-field { margin-bottom:16px; }
+.edit-field:last-child { margin-bottom:0; }
+.edit-field label { display:block; font-size:12px; font-weight:500; color:#86868b; margin-bottom:4px; }
+.edit-field select,.edit-field input,.edit-field textarea { width:100%; padding:10px 12px; border:1px solid #d2d2d7; border-radius:8px; font-size:14px; outline:none; background:#fff; font-family:inherit; }
+.edit-field select:focus,.edit-field input:focus,.edit-field textarea:focus { border-color:#0071e3; }
+.edit-field textarea { min-height:60px; resize:vertical; }
+.factor-edit { background:#fff; border-radius:10px; padding:14px; margin-bottom:6px; }
+.fe-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.fe-class { font-size:13px; font-weight:500; color:#0071e3; }
+.fe-params { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.fe-param { display:flex; flex-direction:column; gap:1px; }
+.fe-param .fel { font-size:11px; color:#636366; font-weight:500; font-family:'SF Mono',monospace; }
+.fe-param input { padding:6px 10px; border:1px solid #d2d2d7; border-radius:6px; font-size:13px; outline:none; }
+.fe-param input:focus { border-color:#0071e3; }
+.fe-param .fed { font-size:10px; color:#aeaeb2; margin-top:2px; }
+.edit-actions { display:flex; gap:8px; margin-top:20px; }
+.empty-state { padding:60px; text-align:center; color:#86868b; }
+.empty-state .icon { font-size:40px; margin-bottom:12px; }
+.empty-state .t1 { margin-bottom:8px; font-weight:500; }
+.empty-state .t2 { font-size:13px; }
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100; justify-content:center; align-items:center; }
+.overlay.show { display:flex; }
+.dialog { background:#fff; border-radius:16px; max-width:380px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,.2); }
+.dialog-body { padding:28px 24px 20px; text-align:center; }
+.dialog-body .dicon { font-size:36px; margin-bottom:12px; }
+.dialog-body .dt { font-size:16px; font-weight:600; margin-bottom:6px; }
+.dialog-body .dd { font-size:13px; color:#86868b; line-height:1.5; }
+.dialog-actions { display:flex; gap:0; border-top:1px solid #e8e8ed; }
+.dialog-actions button { flex:1; padding:14px; border:none; background:none; font-size:14px; font-weight:500; cursor:pointer; border-radius:0; }
+.dialog-actions button:first-child { border-right:1px solid #e8e8ed; color:#86868b; }
+.dialog-actions button:first-child:hover { background:#f5f5f7; }
+.dialog-actions button:last-child { color:#ff3b30; }
+.dialog-actions button:last-child:hover { background:#fff0f0; }
+.toast { position:fixed; top:20px; right:20px; background:#1d1d1f; color:#fff; padding:12px 20px; border-radius:10px; font-size:13px; z-index:200; opacity:0; transition:opacity .3s; }
+.toast.show { opacity:1; }
+.toast.err { background:#ff3b30; }
+.disc-item { display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:8px; cursor:pointer; transition:background .15s; margin-bottom:4px; }
+.disc-item:hover { background:#eef1ff; }
+.disc-item .disc-sid { width:24px; height:24px; border-radius:6px; background:#dce0ff; color:#0071e3; font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.disc-info { flex:1; min-width:0; }
+.disc-name { font-size:13px; font-weight:500; }
+.disc-desc { font-size:11px; color:#86868b; margin-top:1px; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+  <div class="header-icon">⚙️</div>
+  <h1>策略池管理</h1>
+  <div class="badge" id="badge">加载中...</div>
+</div>
+<div class="layout">
+<div class="left">
+  <div class="left-header"><h2>策略全集</h2><a href="javascript:discoverNew()" style="font-size:12px;color:#0071e3;text-decoration:none;font-weight:500">+ 发现新策略</a></div>
+  <div class="filter-bar">
+    <input placeholder="搜索策略名称..." id="searchInput" oninput="renderList()">
+    <select id="stageFilter" onchange="renderList()">
+      <option value="all">全部阶段</option>
+      <option value="dev">回测中</option>
+      <option value="live">实盘中</option>
+      <option value="paused">已冻结</option>
+    </select>
+  </div>
+  <div class="strategy-list" id="strategyList">加载中...</div>
+</div>
+<div class="right" id="rightPanel">
+  <div id="panelView" style="display:none"></div>
+  <div id="panelEdit" style="display:none"></div>
+  <div id="panelEmpty">
+    <div class="empty-state">
+      <div class="icon">👈</div>
+      <div class="t1">选择一条策略</div>
+      <div class="t2">左侧显示全部已注册策略，点击查看和编辑</div>
+    </div>
+  </div>
+</div>
+</div></div>
+
+<div class="overlay" id="delOverlay">
+  <div class="dialog">
+    <div class="dialog-body">
+      <div class="dicon">🗑️</div>
+      <div class="dt">确认删除策略？</div>
+      <div class="dd" id="delDesc">仅从注册表移除，不删除代码文件。</div>
+    </div>
+    <div class="dialog-actions">
+      <button onclick="closeDel()">取消</button>
+      <button id="delConfirmBtn" onclick="confirmDel()">删除</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="discoverOverlay">
+  <div class="dialog" style="max-width:480px">
+    <div class="dialog-body" style="text-align:left">
+      <div style="font-size:16px;font-weight:600;margin-bottom:12px">🔍 发现新策略</div>
+      <div style="font-size:13px;color:#86868b;margin-bottom:8px">以下策略已在 strategy_definitions.py 中注册，但尚未创建 JSON 文件。</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#0071e3;margin-bottom:8px;cursor:pointer">
+        <input type="checkbox" id="discSelectAll" onchange="toggleAllDiscover(this.checked)"> 全选
+      </label>
+      <div id="discoverList" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+    <div class="dialog-actions">
+      <button onclick="closeDiscover()">关闭</button>
+      <button onclick="batchCreate()" style="color:#0071e3">创建所选</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// _docs 直接从 JSON 数据的 factor 对象中读取，不再维护硬编码 paramDoc
+function getDoc(factor, param) { return (factor._docs||{})[param]||''; }
+
+let strategies = [], curSid = null, isEditing = false;
+
+async function loadData() {
+  try {
+    const r = await fetch('/api/strategies');
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    strategies = data.strategies || [];
+  } catch(e) {
+    console.warn('加载注册表失败:', e);
+    strategies = [];
+  }
+  document.getElementById('badge').textContent = `策略全集 · ${strategies.length} 条`;
+  renderList();
+}
+
+async function saveData() {
+  const body = { strategies };
+  try {
+    const r = await fetch('/api/strategies', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) { showToast('保存失败: '+(data.error||r.status), true); return false; }
+    showToast('保存成功');
+    return true;
+  } catch(e) { showToast('保存失败: '+e.message, true); return false; }
+}
+
+function stageInfo(s) {
+  if (s===0||s===1) return {label:"回测中",css:"dev",group:"dev"};
+  if (s===2) return {label:"实盘中",css:"live",group:"live"};
+  if (s===9) return {label:"已冻结",css:"paused",group:"paused"};
+  return {label:"未知",css:"",group:"unknown"};
+}
+
+function renderList() {
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const sf = document.getElementById('stageFilter').value;
+  let filtered = strategies.filter(s => {
+    if (sf!=='all' && stageInfo(s.stage).group!==sf) return false;
+    if (q && !s.name.toLowerCase().includes(q) && !String(s.sid).includes(q)) return false;
+    return true;
+  });
+  document.getElementById('badge').textContent = `策略全集 · ${strategies.length} 条（筛选 ${filtered.length}）`;
+  const el = document.getElementById('strategyList');
+  el.innerHTML = filtered.map(s => {
+    const si = stageInfo(s.stage);
+    const itemCls = ['strategy-item', s.sid===curSid?'active':'',
+      s.stage===9?'si-paused':'', s.stage===2?'si-live':''].filter(Boolean).join(' ');
+    return `<div class="${itemCls}" onclick="selectStrategy('${s.sid}')">
+      <div class="stage-dot ${si.css}"></div>
+      <div class="sid-badge">S${s.sid}</div>
+      <div class="si-info">
+        <div class="si-name">${s.name}</div>
+        <div class="si-desc">${s.description||''}</div>
+      </div>
+      <div class="si-stage-tag ${si.css}">${si.label}</div>
+    </div>`;
+  }).join('') || '<div style="padding:40px;text-align:center;color:#86868b;font-size:13px">无匹配策略</div>';
+}
+
+function selectStrategy(sid) {
+  curSid = sid; isEditing = false;
+  renderList(); renderView();
+}
+
+function paramView(pk, pv, doc) {
+  return `<div class="fc-param">
+    <div class="pk">${pk}</div><div class="pv">${pv}</div><div class="pd">${doc}</div></div>`;
+}
+
+function factorsView(fac, label) {
+  if (typeof fac === 'string')
+    return `<div class="factor-card"><div class="fc-class" style="font-size:14px">${fac}</div></div>`;
+  if (!Array.isArray(fac)) return '';
+  return fac.map(f => {
+    const params = Object.entries(f).filter(([k])=>k!=='class'&&k!=='_docs').map(([k,v])=>paramView(k,v,getDoc(f,k))).join('');
+    return `<div class="factor-card">
+      <div class="fc-header">
+        <span class="fc-class">${f.class}</span><span class="fc-label">${label||''}</span>
+      </div>
+      <div class="fc-params">${params||'<span style="color:#aeaeb2;font-size:12px;grid-column:1/-1">无参数</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderView() {
+  const s = strategies.find(x=>x.sid===curSid);
+  if (!s) return;
+  const si = stageInfo(s.stage);
+  const rightEl = document.getElementById('rightPanel');
+  rightEl.className = 'right ' + (s.stage===9?'paused-bg':s.stage===2?'live-bg':'');
+  ['panelView','panelEdit','panelEmpty'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('panelView').style.display='block';
+  const stageTag = `<span class="tag ${si.css}">${si.label}</span>`;
+  document.getElementById('panelView').innerHTML = `
+    <div class="right-header">
+      <div>
+        <h3>${s.name}</h3>
+        <div class="h3-sub">SID ${s.sid} · ${s.group_name||''} ${stageTag}</div>
+      </div>
+      <div class="right-actions">
+        <button class="btn-icon" onclick="switchEdit()" title="编辑">✏️</button>
+        <button class="btn-icon danger" onclick="openDel('${s.sid}')" title="删除">🗑️</button>
+      </div>
+    </div>
+    <div class="desc-block"><div class="dl">描述</div>${s.description||''}</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="il">策略 ID</div><div class="iv">S${s.sid}</div></div>
+      <div class="info-card"><div class="il">策略组</div><div class="iv">${s.group_name||''}</div></div>
+      <div class="info-card"><div class="il">阶段</div><div class="iv">${s.stage} ${stageTag}</div></div>
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">买入因子</div>
+      ${factorsView(mergedFactors(s.factors?.buy, s.factor_overrides?.buy), '买入因子')}
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">卖出因子</div>
+      ${factorsView(mergedFactors(s.factors?.sell, s.factor_overrides?.sell), '卖出因子')}
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">选股因子</div>
+      ${factorsView(s.factors?.stock_pick, '选股')}
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">仓位管理</div>
+      ${factorsView(s.factors?.position, '仓位')}
+    </div>`;
+}
+
+function factorEditGroup(fac, key) {
+  if (typeof fac === 'string')
+    return `<div class="factor-edit"><div class="fe-class" style="color:#86868b;font-size:13px">${fac}（预置组合，仅查看）</div></div>`;
+  if (!Array.isArray(fac)) return '';
+  return fac.map((f,i)=>{
+    const params = Object.entries(f).filter(([k])=>k!=='class'&&k!=='_docs').map(([k,v])=>{
+      const doc = getDoc(f,k);
+      return `<div class="fe-param">
+        <div class="fel">${k}</div>
+        <input value="${JSON.stringify(v).replace(/"/g,'&quot;')}" data-key="${key}" data-idx="${i}" data-param="${k}">
+        <div class="fed">${doc}</div></div>`;
+    }).join('');
+    return `<div class="factor-edit">
+      <div class="fe-header"><span class="fe-class">${f.class}</span></div>
+      <div class="fe-params">${params}</div></div>`;
+  }).join('');
+}
+
+// 合并 factor_overrides 到 factors，编辑时显示有效值
+function mergedFactors(fac, overrides) {
+  if (!Array.isArray(fac)) return fac;
+  const ov = Array.isArray(overrides) ? overrides : [];
+  return fac.map(f => {
+    const found = ov.find(o => o.class === f.class);
+    return found ? Object.assign({}, f, found) : f;
+  });
+}
+
+function switchEdit() {
+  isEditing = true;
+  const s = strategies.find(x=>x.sid===curSid);
+  if (!s) return;
+  document.getElementById('panelView').style.display='none';
+  document.getElementById('panelEdit').style.display='block';
+    const fo = s.factor_overrides || {};
+    const editBuy = mergedFactors(s.factors?.buy, fo.buy);
+    const editSell = mergedFactors(s.factors?.sell, fo.sell);
+    const editSP = mergedFactors(s.factors?.stock_pick, fo.stock_pick);
+    const editPos = mergedFactors(s.factors?.position, fo.position);
+  const pe = document.getElementById('panelEdit');
+  pe.innerHTML = `
+    <div class="right-header">
+      <div><h3 style="font-size:20px">编辑 — ${s.name}</h3><div class="h3-sub">SID ${s.sid}</div></div>
+      <div class="right-actions"><button class="btn-icon" onclick="cancelEdit()">✕</button></div>
+    </div>
+    <div class="edit-card">
+      <div class="edit-field"><label>描述</label><textarea id="editDesc">${s.description||''}</textarea></div>
+      <div class="edit-field">
+        <label>阶段</label>
+        <select id="editStage">
+          <option value="0" ${s.stage===0?'selected':''}>0 - 回测开发</option>
+          <option value="1" ${s.stage===1?'selected':''}>1 - 可批量回测</option>
+          <option value="2" ${s.stage===2?'selected':''}>2 - 实盘</option>
+          <option value="9" ${s.stage===9?'selected':''}>9 - 冻结</option>
+        </select>
+      </div>
+      <div class="edit-field">
+        <label>策略组</label>
+        <select id="editGroup">
+          <option value="底吸反转" ${s.group_name==='底吸反转'?'selected':''}>底吸反转</option>
+          <option value="趋势跟踪" ${s.group_name==='趋势跟踪'?'selected':''}>趋势跟踪</option>
+          <option value="短线快打" ${s.group_name==='短线快打'?'selected':''}>短线快打</option>
+        </select>
+      </div>
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">买入因子</div>
+      ${factorEditGroup(editBuy, 'buy')}
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">卖出因子</div>
+      ${factorEditGroup(editSell, 'sell')}
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">选股因子</div>
+      ${factorEditGroup(editSP, 'stock_pick')}
+    </div>
+    <div class="factor-section">
+      <div class="fs-title">仓位管理</div>
+      ${factorEditGroup(editPos, 'position')}
+    </div>
+    <div class="edit-actions">
+      <button class="btn-primary" onclick="saveEdit()">保存修改</button>
+      <button class="btn-secondary" onclick="cancelEdit()">取消</button>
+    </div>`;
+}
+
+function cancelEdit() { isEditing=false; renderView(); }
+
+function saveEdit() {
+  const s = strategies.find(x=>x.sid===curSid);
+  if (!s) return;
+  s.description = document.getElementById('editDesc').value;
+  s.stage = parseInt(document.getElementById('editStage').value);
+  s.group_name = document.getElementById('editGroup').value;
+
+  // 收集编辑后的因子参数 → 直接写入 factors（全量模式）
+  const newFac = {buy:[], sell:[], stock_pick:[], position:[]};
+  document.querySelectorAll('#panelEdit input[data-key]').forEach(inp => {
+    const key = inp.dataset.key, idx = parseInt(inp.dataset.idx), param = inp.dataset.param;
+    if (!newFac[key][idx]) {
+      const fac = s.factors?.[key];
+      const cls = (Array.isArray(fac) && fac[idx]) ? fac[idx].class : '';
+      const docs = (Array.isArray(fac) && fac[idx]) ? fac[idx]._docs || {} : {};
+      newFac[key][idx] = {class: cls, _docs: docs};
+    }
+    const val = inp.value.replace(/^["']|["']$/g,''), num = Number(val);
+    newFac[key][idx][param] = isNaN(num) ? val : num;
+  });
+  // 写回 factors，清空 factor_overrides
+  for (const k of ['buy','sell','stock_pick','position']) {
+    const arr = newFac[k].filter(x => x.class);
+    if (arr.length) {
+      if (!s.factors) s.factors = {};
+      s.factors[k] = arr;
+    }
+  }
+  s.factor_overrides = {buy:[], sell:[], stock_pick:[], position:[]};
+
+  // 保存到 JSON
+  saveData().then(ok => {
+    if (ok) { isEditing=false; renderList(); renderView(); }
+  });
+}
+
+let delSid=null;
+function openDel(sid) {
+  delSid=sid;
+  const s = strategies.find(x=>x.sid===sid);
+  if (!s) return;
+  document.getElementById('delDesc').innerHTML = `<strong>${s.name}</strong>（SID ${s.sid}）将从注册表中移除，不删除代码文件。`;
+  document.getElementById('delOverlay').classList.add('show');
+}
+function closeDel() { document.getElementById('delOverlay').classList.remove('show'); delSid=null; }
+async function confirmDel() {
+  try {
+    const r = await fetch('/api/strategies/'+delSid, {method:'DELETE'});
+    const d = await r.json();
+    if (!r.ok) { showToast('删除失败: '+(d.error||''), true); return; }
+  } catch(e) { showToast('删除失败', true); return; }
+  const idx = strategies.findIndex(x=>x.sid===delSid);
+  if (idx>-1) strategies.splice(idx,1);
+  if (curSid===delSid) { curSid=null; ['panelView','panelEdit','panelEmpty'].forEach(id=>{const el=document.getElementById(id); el.style.display=id==='panelEmpty'?'block':'none';}); }
+  closeDel(); renderList(); showToast('已删除');
+}
+
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(isErr?' err':'')+' show';
+  setTimeout(()=>t.className='toast',2000);
+}
+
+let discoverListCache = [];
+
+async function discoverNew() {
+  const el = document.getElementById('discoverList');
+  el.innerHTML = '加载中...';
+  document.getElementById('discoverOverlay').classList.add('show');
+  document.getElementById('discSelectAll').checked = false;
+  try {
+    const r = await fetch('/api/strategies/new');
+    const data = await r.json();
+    discoverListCache = data.strategies || [];
+    if (!discoverListCache.length) {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:#86868b">👍 所有已注册策略都有 JSON 文件</div>';
+      return;
+    }
+    el.innerHTML = discoverListCache.map(s => `<div class="disc-item">
+      <input type="checkbox" class="disc-cb" value="${s.sid}" style="flex-shrink:0">
+      <div class="disc-sid">S${s.sid}</div>
+      <div class="disc-info">
+        <div class="disc-name">${s.name}</div>
+        <div class="disc-desc">${s.description||''} · ${s.group_name||''}</div>
+      </div>
+    </div>`).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#ff3b30">加载失败</div>';
+  }
+}
+
+function toggleAllDiscover(checked) {
+  document.querySelectorAll('#discoverList .disc-cb').forEach(cb => { cb.checked = checked; });
+}
+
+function closeDiscover() {
+  document.getElementById('discoverOverlay').classList.remove('show');
+  discoverListCache = [];
+}
+
+async function batchCreate() {
+  const checked = [...document.querySelectorAll('#discoverList .disc-cb:checked')].map(cb => cb.value);
+  if (!checked.length) { showToast('请至少选择一个策略', true); return; }
+  let ok = 0, fail = 0;
+  for (const sid of checked) {
+    const s = discoverListCache.find(x => x.sid === sid);
+    if (!s) { fail++; continue; }
+    try {
+      const r = await fetch('/api/strategies/new', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(s)
+      });
+      if (r.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  showToast(`创建完成: ${ok} 成功, ${fail} 失败`);
+  closeDiscover();
+  await loadData();
+}
+
+loadData();
+</script>
+</body>
+</html>
